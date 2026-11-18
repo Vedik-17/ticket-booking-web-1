@@ -44,3 +44,4 @@ export async function generateUpiQrDataUrl(uri: string): Promise<string> {
     errorCorrectionLevel: 'M',
   });
 }
+

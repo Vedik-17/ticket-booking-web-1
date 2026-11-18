@@ -13,11 +13,12 @@ import {
   Clock,
   ArrowRight,
   Sparkles,
+  Zap,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
-import { Booking, Event, Ticket } from '@firefly/shared-types';
+import { Booking, Event } from '@firefly/shared-types';
 import { formatINR, paiseToRupees } from '@firefly/core';
-import { p1Storage, P1OrganiserConfig } from '@/lib/idb-storage';
+import { p1Storage } from '@/lib/idb-storage';
 import { buildUpiUri, buildAppUpiUri, generateUpiQrDataUrl } from '@/lib/upi';
 
 export default function P1UpiPaymentPage() {
@@ -26,40 +27,46 @@ export default function P1UpiPaymentPage() {
   const bookingId = params?.id as string;
 
   const [booking, setBooking] = useState<Booking | null>(null);
-  const [config, setConfig] = useState<P1OrganiserConfig | null>(null);
+  const [event, setEvent] = useState<Event | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+
+  // Fallback receiving UPI config
+  const upiId = p1Storage.defaultUpiId;
+  const payeeName = p1Storage.defaultPayeeName;
+  const adminWhatsAppPhone = p1Storage.defaultAdminPhone;
 
   useEffect(() => {
-    const b = p1Storage.getBooking(bookingId);
-    const cfg = p1Storage.getConfig();
-    if (b) {
-      setBooking(b);
-      setConfig(cfg);
+    if (bookingId) {
+      const b = p1Storage.getBooking(bookingId);
+      if (b) {
+        setBooking(b);
+        const e = p1Storage.getEvent(b.eventId);
+        if (e) setEvent(e);
 
-      if (b.status === 'CONFIRMED') {
-        const t = p1Storage.getTicketsByBookingId(b.id);
-        if (t.length > 0) {
-          router.push(`/ticket/${t[0].id}`);
-          return;
+        if (b.status === 'CONFIRMED') {
+          const t = p1Storage.getTicketsByBookingId(b.id);
+          if (t.length > 0) {
+            router.push(`/ticket/${t[0].id}`);
+            return;
+          }
         }
+
+        // Generate dynamic exact-amount UPI QR
+        const amountInRupees = paiseToRupees(b.totalAmountInPence);
+        const uri = buildUpiUri({
+          upiId,
+          payeeName,
+          amountInRupees,
+          transactionNote: `Firefly ${b.bookingReference}`,
+        });
+
+        generateUpiQrDataUrl(uri).then(setQrDataUrl);
       }
-
-      // Generate UPI QR code
-      const amountInRupees = paiseToRupees(b.totalAmountInPence);
-      const uri = buildUpiUri({
-        upiId: cfg.upiId,
-        payeeName: cfg.payeeName,
-        amountInRupees,
-        transactionNote: `Firefly ${b.bookingReference}`,
-      });
-
-      generateUpiQrDataUrl(uri).then(setQrDataUrl);
     }
-  }, [bookingId, router]);
+  }, [bookingId, router, upiId, payeeName]);
 
-  // Periodic poll of local storage to detect organiser verification
+  // Polling local store to auto-redirect if admin confirms
   useEffect(() => {
     if (!booking) return;
     const interval = setInterval(() => {
@@ -75,28 +82,17 @@ export default function P1UpiPaymentPage() {
   }, [booking, router]);
 
   const copyUpiId = () => {
-    if (!config) return;
-    navigator.clipboard.writeText(config.upiId);
+    navigator.clipboard.writeText(upiId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
-  // Instant simulate confirmation for demo / sandbox preview
-  const handleSimulateApproval = () => {
-    if (!booking) return;
-    setVerifying(true);
-    const res = p1Storage.confirmBookingAndIssueTickets(booking.id, `UPI-CONFIRMED-${Date.now()}`);
-    if (res.success && res.tickets && res.tickets.length > 0) {
-      router.push(`/ticket/${res.tickets[0].id}`);
-    }
-  };
-
-  if (!booking || !config) {
+  if (!booking) {
     return (
       <div className="py-20 text-center space-y-4">
         <h2 className="text-xl font-bold text-white">Booking Not Found</h2>
         <Link href="/">
-          <GlassButton variant="secondary">Back to Event</GlassButton>
+          <GlassButton variant="secondary">Back to Events</GlassButton>
         </Link>
       </div>
     );
@@ -104,8 +100,8 @@ export default function P1UpiPaymentPage() {
 
   const amountInRupees = paiseToRupees(booking.totalAmountInPence);
   const upiDetails = {
-    upiId: config.upiId,
-    payeeName: config.payeeName,
+    upiId,
+    payeeName,
     amountInRupees,
     transactionNote: `Firefly ${booking.bookingReference}`,
   };
@@ -115,17 +111,25 @@ export default function P1UpiPaymentPage() {
   const phonePeUri = buildAppUpiUri('phonepe', upiDetails);
   const paytmUri = buildAppUpiUri('paytm', upiDetails);
 
-  // WhatsApp click-to-chat message
-  const waMsg = encodeURIComponent(
-    `Hello ${config.businessName}, I have initiated a payment of ${formatINR(
-      booking.totalAmountInPence
-    )} for Booking Ref: ${booking.bookingReference} (${booking.customer.fullName}).\nHere is my UPI confirmation screenshot.`
-  );
-  const waUrl = `https://wa.me/${config.whatsappPhone.replace(/\D/g, '')}?text=${waMsg}`;
+  // Preloaded WhatsApp Message specifying tickets, customer name, and mobile number
+  const ticketsSummary = booking.items.map((i) => `${i.quantity}x ${i.tierName}`).join(', ');
+  const preloadedWhatsAppText =
+    `Hello ${payeeName},\n\nI have initiated payment for my booking:\n` +
+    `• Booking Ref: ${booking.bookingReference}\n` +
+    `• Customer Name: ${booking.customer.fullName}\n` +
+    `• Mobile Number: ${booking.customer.phone}\n` +
+    `• Event: ${event?.title || 'Event'}\n` +
+    `• Tickets: ${ticketsSummary}\n` +
+    `• Total Amount: ${formatINR(booking.totalAmountInPence)}\n\n` +
+    `Here is my UPI payment confirmation screenshot for manual verification.`;
+
+  const waRedirectUrl = `https://wa.me/${adminWhatsAppPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+    preloadedWhatsAppText
+  )}`;
 
   return (
     <div className="max-w-md mx-auto space-y-6">
-      {/* Header card */}
+      {/* Header card with Autogenerated QR */}
       <GlassCard className="text-center space-y-4">
         <div className="space-y-1">
           <GlassBadge variant="accent">Direct UPI Payment</GlassBadge>
@@ -144,15 +148,15 @@ export default function P1UpiPaymentPage() {
           )}
         </div>
 
-        <p className="text-xs text-white/60">
-          Scan using any UPI app (Google Pay, PhonePe, Paytm, BHIM, Cred)
+        <p className="text-xs text-white/70">
+          Scan using any UPI app (GPay, PhonePe, Paytm, BHIM, Cred)
         </p>
 
         {/* Copy UPI ID */}
         <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-xs">
           <div className="text-left font-mono truncate mr-2">
             <span className="text-[10px] text-white/40 block">Payee UPI ID</span>
-            <span className="text-white font-semibold">{config.upiId}</span>
+            <span className="text-white font-semibold">{upiId}</span>
           </div>
           <button
             onClick={copyUpiId}
@@ -164,9 +168,9 @@ export default function P1UpiPaymentPage() {
         </div>
       </GlassCard>
 
-      {/* Quick Launch Mobile Buttons */}
+      {/* 1-Tap UPI Apps Redirection */}
       <GlassCard className="space-y-3">
-        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Pay Directly in App</h3>
+        <h3 className="text-xs font-bold text-white uppercase tracking-wider">Tap to Open UPI App</h3>
         <div className="grid grid-cols-3 gap-2 text-xs">
           <a
             href={gpayUri}
@@ -189,39 +193,37 @@ export default function P1UpiPaymentPage() {
         </div>
       </GlassCard>
 
-      {/* WhatsApp Verification Action */}
+      {/* WhatsApp Redirection with Preloaded Details */}
       <GlassCard className="space-y-3">
         <div className="flex items-start gap-2.5">
           <MessageSquare className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
           <div className="text-xs space-y-1">
-            <p className="font-semibold text-white">Send Screenshot to Organiser</p>
+            <p className="font-semibold text-white">Send Payment Details on WhatsApp</p>
             <p className="text-white/60">
-              After transferring, send the transaction screenshot on WhatsApp for instant confirmation.
+              Redirects to WhatsApp with preloaded booking details (tickets count, name, mobile) to send your payment screenshot for manual confirmation.
             </p>
           </div>
         </div>
 
-        <a href={waUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <GlassButton variant="secondary" fullWidth size="md">
+        <a href={waRedirectUrl} target="_blank" rel="noopener noreferrer" className="block">
+          <GlassButton variant="primary" fullWidth size="md">
             <div className="flex items-center justify-center gap-2">
-              <MessageSquare className="w-4 h-4 text-emerald-400" />
-              <span>Send WhatsApp Screenshot</span>
+              <MessageSquare className="w-4 h-4 text-white" />
+              <span>Redirect to WhatsApp with Details</span>
             </div>
           </GlassButton>
         </a>
       </GlassCard>
 
-      {/* Sandbox Instant Verification Demo Button */}
-      <div className="p-3.5 rounded-xl bg-white/[0.02] border border-dashed border-white/[0.15] text-center space-y-2">
-        <p className="text-[11px] text-white/50">Prototype Testing Shortcut:</p>
-        <button
-          onClick={handleSimulateApproval}
-          disabled={verifying}
-          className="text-xs font-semibold text-[#FF9A45] hover:underline flex items-center justify-center gap-1 mx-auto"
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Simulate Organiser Approval & View Ticket</span>
-        </button>
+      {/* Status Notice */}
+      <div className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.08] text-center space-y-1 text-xs">
+        <p className="text-white/60 flex items-center justify-center gap-1.5">
+          <Clock className="w-3.5 h-3.5 text-[#FF9A45]" />
+          <span>Status: Awaiting Manual Organiser Confirmation</span>
+        </p>
+        <p className="text-[11px] text-white/40">
+          Once confirmed in the admin panel, your QR ticket pass will be generated and delivered via WhatsApp.
+        </p>
       </div>
     </div>
   );

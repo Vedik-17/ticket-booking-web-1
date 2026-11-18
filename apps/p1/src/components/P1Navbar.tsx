@@ -37,7 +37,7 @@ export const P1Navbar = () => {
                 : 'text-white/70 hover:text-white'
             }`}
           >
-            Event Booking
+            Events Dashboard
           </Link>
 
           <Link
@@ -49,10 +49,11 @@ export const P1Navbar = () => {
             }`}
           >
             <ShieldCheck className="w-3.5 h-3.5 text-[#FF9A45]" />
-            <span>Organiser Console</span>
+            <span>Admin Panel</span>
           </Link>
         </div>
       </nav>
     </header>
   );
 };
+

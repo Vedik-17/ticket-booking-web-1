@@ -1,310 +1,206 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   Calendar,
-  Clock,
   MapPin,
-  ExternalLink,
-  ShieldCheck,
-  Check,
-  Plus,
-  Minus,
   Sparkles,
-  QrCode,
+  ArrowRight,
+  Search,
+  Tag,
+  ShieldCheck,
   Zap,
 } from 'lucide-react';
-import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
+import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
 import { Event, TicketTier } from '@firefly/shared-types';
 import { formatINR } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
 
-export default function SingleEventLandingPage() {
-  const router = useRouter();
-  const [event, setEvent] = useState<Event | null>(null);
+export default function P1EventsDashboardPage() {
+  const [events, setEvents] = useState<Event[]>([]);
   const [tiers, setTiers] = useState<TicketTier[]>([]);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [customer, setCustomer] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
-    whatsappOptIn: true,
-  });
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   useEffect(() => {
-    // Load event & tiers from local store
-    const evt = p1Storage.getEvent();
-    const t = p1Storage.getTiers();
-    setEvent(evt);
-    setTiers(t);
-    if (t.length > 0) {
-      setQuantities({ [t[0].id]: 1 });
-    }
+    setEvents(p1Storage.getEvents());
+    setTiers(p1Storage.getTiers());
   }, []);
 
-  const updateQty = (tierId: string, delta: number, max: number) => {
-    const cur = quantities[tierId] || 0;
-    const next = Math.max(0, Math.min(max, cur + delta));
-    setQuantities((prev) => ({ ...prev, [tierId]: next }));
+  const getStartingPrice = (eventId: string) => {
+    const eventTiers = tiers.filter((t) => t.eventId === eventId && t.status === 'ACTIVE');
+    if (eventTiers.length === 0) return null;
+    const lowest = Math.min(...eventTiers.map((t) => t.priceInPence));
+    return lowest;
   };
 
-  const totalTickets = Object.values(quantities).reduce((a, b) => a + b, 0);
-  let totalAmountInPence = 0;
-  tiers.forEach((t) => {
-    totalAmountInPence += t.priceInPence * (quantities[t.id] || 0);
-  });
-
-  const handleBookingSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (totalTickets === 0) {
-      setError('Please select at least 1 ticket.');
-      return;
+  const filteredEvents = events.filter((evt) => {
+    if (selectedCategory !== 'ALL' && evt.category !== selectedCategory) {
+      return false;
     }
-    if (!customer.fullName.trim() || !customer.phone.trim() || !customer.email.trim()) {
-      setError('Please fill in your name, email and contact phone.');
-      return;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchTitle = evt.title.toLowerCase().includes(q);
+      const matchCity = evt.venue.city.toLowerCase().includes(q);
+      const matchDesc = evt.description.toLowerCase().includes(q);
+      if (!matchTitle && !matchCity && !matchDesc) return false;
     }
-
-    setSubmitting(true);
-    setError(null);
-
-    const items = Object.entries(quantities)
-      .filter(([_, qty]) => qty > 0)
-      .map(([tierId, quantity]) => ({ tierId, quantity }));
-
-    const res = p1Storage.createBooking({
-      customer,
-      items,
-    });
-
-    if (res.success && res.booking) {
-      router.push(`/pay/${res.booking.id}`);
-    } else {
-      setError(res.error || 'Failed to create booking.');
-      setSubmitting(false);
-    }
-  };
-
-  if (!event) return null;
-
-  const startDate = new Date(event.schedule.startsAt).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  const startTime = new Date(event.schedule.startsAt).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-  const endTime = new Date(event.schedule.endsAt).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
+    return true;
   });
 
   return (
-    <div className="space-y-8">
-      {/* Hero Presentation */}
-      <GlassCard padding="none" className="relative overflow-hidden">
-        <div className="relative h-64 md:h-80 w-full">
-          <img src={event.posterUrl} alt={event.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/60 to-transparent" />
-          <div className="absolute top-4 left-4 flex gap-2">
-            <GlassBadge variant="accent">SINGLE EVENT EDITION</GlassBadge>
-            {event.isAgeRestricted && <GlassBadge variant="error">{event.minimumAge}+ Only</GlassBadge>}
-          </div>
-          <div className="absolute bottom-6 left-6 right-6 space-y-2">
-            <h1 className="text-2xl md:text-4xl font-extrabold text-white tracking-tight">{event.title}</h1>
-            <p className="text-xs md:text-sm text-white/80 max-w-2xl">{event.tagline}</p>
-          </div>
-        </div>
-      </GlassCard>
-
-      {/* Grid: Event Details & Ticket Checkout */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Schedule & Venue */}
-        <div className="md:col-span-6 space-y-6">
-          <GlassCard className="space-y-4">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Date & Venue</h3>
-
-            <div className="space-y-3 text-xs">
-              <div className="flex items-start gap-2.5">
-                <Calendar className="w-4 h-4 text-[#FF9A45] shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-white">{startDate}</p>
-                  <p className="text-white/50">{startTime} to {endTime} ({event.schedule.timezone})</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-[#FF9A45] shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-white">{event.venue.name}</p>
-                  <p className="text-white/50">{event.venue.address}, {event.venue.city}</p>
-                  {event.venue.googleMapsUrl && (
-                    <a
-                      href={event.venue.googleMapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[#FF9A45] hover:underline pt-1 text-[11px]"
-                    >
-                      <span>Open in Google Maps</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="space-y-3">
-            <h3 className="text-sm font-bold text-white uppercase tracking-wider">Event Information</h3>
-            <p className="text-xs text-white/70 leading-relaxed whitespace-pre-line">{event.description}</p>
-            {event.termsAndConditions && (
-              <div className="pt-3 border-t border-white/[0.06]">
-                <p className="text-[11px] text-white/50">{event.termsAndConditions}</p>
-              </div>
-            )}
-          </GlassCard>
+    <div className="space-y-10">
+      {/* Hero Section */}
+      <section className="text-center py-8 space-y-4">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] backdrop-blur-md">
+          <Sparkles className="w-3.5 h-3.5 text-[#FF9A45]" />
+          <span className="text-xs font-medium text-white/80">
+            Direct UPI Event Ticketing Platform
+          </span>
         </div>
 
-        {/* Right Column: Ticket Tiers & Instant UPI Checkout */}
-        <div className="md:col-span-6">
-          <form onSubmit={handleBookingSubmit} className="space-y-5">
-            <GlassCard className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#FF9A45]" />
-                  <span>Select Tickets</span>
-                </h3>
-                <span className="text-[10px] text-white/40 font-mono">0% Gateway Convenience Fee</span>
-              </div>
+        <h1 className="text-3xl md:text-5xl font-extrabold text-white tracking-tight max-w-3xl mx-auto">
+          Upcoming Live{' '}
+          <span className="bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] bg-clip-text text-transparent">
+            Experiences
+          </span>
+        </h1>
 
-              {/* Tiers List */}
-              <div className="space-y-3">
-                {tiers.map((t) => {
-                  const qty = quantities[t.id] || 0;
-                  const available = Math.max(0, t.capacity - t.soldCount);
-                  const isSoldOut = available <= 0;
+        <p className="text-xs md:text-sm text-white/60 max-w-xl mx-auto">
+          Explore upcoming music festivals, exhibitions, and parties. Instant booking with direct UPI app payment and WhatsApp QR passes.
+        </p>
 
-                  return (
-                    <div
-                      key={t.id}
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        qty > 0 ? 'bg-[#FF6A1A]/10 border-[#FF6A1A]/40' : 'bg-white/[0.02] border-white/[0.08]'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="space-y-0.5">
-                          <h4 className="text-sm font-bold text-white">{t.name}</h4>
-                          <p className="text-xs text-white/50">{t.description}</p>
-                          <p className="text-sm font-semibold text-[#FF9A45] pt-1">{formatINR(t.priceInPence)}</p>
-                        </div>
+        {/* Feature Pills */}
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-1">
+          <div className="flex items-center gap-1.5 text-xs text-white/60 bg-white/[0.03] px-3 py-1 rounded-xl border border-white/[0.06]">
+            <Zap className="w-3.5 h-3.5 text-[#FF9A45]" />
+            <span>Zero Gateway Fees</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-white/60 bg-white/[0.03] px-3 py-1 rounded-xl border border-white/[0.06]">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>No Email Required</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-white/60 bg-white/[0.03] px-3 py-1 rounded-xl border border-white/[0.06]">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span>Direct WhatsApp QR Ticket</span>
+          </div>
+        </div>
 
-                        {isSoldOut ? (
-                          <GlassBadge variant="error" size="sm">Sold Out</GlassBadge>
-                        ) : (
-                          <div className="flex items-center gap-2 bg-white/[0.05] p-1 rounded-lg border border-white/[0.08]">
-                            <button
-                              type="button"
-                              onClick={() => updateQty(t.id, -1, t.maxPerBooking)}
-                              disabled={qty === 0}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs disabled:opacity-30"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="text-xs font-semibold text-white w-4 text-center">{qty}</span>
-                            <button
-                              type="button"
-                              onClick={() => updateQty(t.id, 1, Math.min(t.maxPerBooking, available))}
-                              disabled={qty >= t.maxPerBooking || qty >= available}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs disabled:opacity-30"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
+        {/* Search */}
+        <div className="max-w-md mx-auto pt-3">
+          <div className="relative flex items-center">
+            <Search className="absolute left-4 w-4 h-4 text-white/40" />
+            <input
+              type="text"
+              placeholder="Search by event or city..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-4 py-3 rounded-2xl bg-[#141414]/90 border border-white/[0.10] text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#FF6A1A]/60 shadow-lg backdrop-blur-xl"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* Events Listing */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <span>Available Events</span>
+            <span className="text-xs font-normal text-white/40 font-mono">({filteredEvents.length})</span>
+          </h2>
+        </div>
+
+        {filteredEvents.length === 0 ? (
+          <div className="text-center py-16 space-y-2 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+            <p className="text-xs text-white/50">No events found matching your search.</p>
+            <button
+              onClick={() => {
+                setSearchQuery('');
+                setSelectedCategory('ALL');
+              }}
+              className="text-xs text-[#FF9A45] hover:underline"
+            >
+              Clear filter
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {filteredEvents.map((evt) => {
+              const startDate = new Date(evt.schedule.startsAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+              const startingPrice = getStartingPrice(evt.id);
+
+              return (
+                <Link key={evt.id} href={`/event/${evt.slug || evt.id}`} className="group block">
+                  <GlassCard variant="interactive" padding="none" className="h-full flex flex-col">
+                    <div className="relative h-48 w-full overflow-hidden bg-neutral-900">
+                      <img
+                        src={evt.posterUrl}
+                        alt={evt.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent opacity-85" />
+                      <div className="absolute top-3 left-3">
+                        <GlassBadge variant="accent" size="sm">
+                          {evt.category.replace('_', ' ')}
+                        </GlassBadge>
                       </div>
-
-                      {t.perks && (
-                        <div className="mt-2.5 pt-2 border-t border-white/[0.04] flex flex-wrap gap-2 text-[10px] text-white/60">
-                          {t.perks.map((p, i) => (
-                            <span key={i} className="flex items-center gap-1">
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span>{p}</span>
-                            </span>
-                          ))}
+                      {evt.isAgeRestricted && (
+                        <div className="absolute top-3 right-3">
+                          <GlassBadge variant="error" size="sm">
+                            {evt.minimumAge ? `${evt.minimumAge}+` : 'Adults Only'}
+                          </GlassBadge>
                         </div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Guest Form */}
-              <div className="space-y-3 pt-3 border-t border-white/[0.08]">
-                <GlassInput
-                  label="Full Name"
-                  placeholder="Attendee full name"
-                  value={customer.fullName}
-                  onChange={(e) => setCustomer({ ...customer, fullName: e.target.value })}
-                  required
-                />
-                <GlassInput
-                  label="Email (Digital Ticket Pass)"
-                  type="email"
-                  placeholder="yourname@example.com"
-                  value={customer.email}
-                  onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-                  required
-                />
-                <GlassInput
-                  label="Phone / WhatsApp Number"
-                  type="tel"
-                  placeholder="9876543210"
-                  value={customer.phone}
-                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                  required
-                />
-              </div>
+                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-3 text-xs text-white/50">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-[#FF9A45]" />
+                            {startDate}
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3.5 h-3.5 text-white/40" />
+                            {evt.venue.city}
+                          </span>
+                        </div>
 
-              {/* Total & Action */}
-              <div className="pt-3 border-t border-white/[0.08] flex justify-between items-center text-sm font-bold text-white">
-                <span>Total Amount:</span>
-                <span className="text-[#FF9A45] text-lg">{formatINR(totalAmountInPence)}</span>
-              </div>
+                        <h3 className="text-base font-bold text-white group-hover:text-[#FF9A45] transition-colors line-clamp-1">
+                          {evt.title}
+                        </h3>
+                        <p className="text-xs text-white/60 line-clamp-2">
+                          {evt.tagline || evt.description}
+                        </p>
+                      </div>
 
-              {error && (
-                <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-200">
-                  {error}
-                </div>
-              )}
+                      <div className="pt-3 border-t border-white/[0.06] flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-white/40 uppercase block">Starting Rate</span>
+                          <span className="text-sm font-semibold text-white">
+                            {startingPrice ? formatINR(startingPrice) : 'Open Entry'}
+                          </span>
+                        </div>
 
-              <GlassButton
-                type="submit"
-                variant="primary"
-                fullWidth
-                size="lg"
-                isLoading={submitting}
-                disabled={totalTickets === 0 || submitting}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  <span>Book & Pay via UPI ({formatINR(totalAmountInPence)})</span>
-                </div>
-              </GlassButton>
-
-              <p className="text-[11px] text-white/40 text-center flex items-center justify-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Direct UPI Deep Link with Zero Surcharges</span>
-              </p>
-            </GlassCard>
-          </form>
-        </div>
-      </div>
+                        <div className="flex items-center gap-1 text-xs font-semibold text-[#FF9A45] group-hover:translate-x-0.5 transition-transform">
+                          <span>Details & Book</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    </div>
+                  </GlassCard>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

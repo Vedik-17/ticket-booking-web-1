@@ -33,8 +33,8 @@ export default function P1TicketPassPage() {
     const t = p1Storage.getTicket(ticketId);
     if (t) {
       setTicket(t);
-      const e = p1Storage.getEvent();
-      setEvent(e);
+      const e = p1Storage.getEvent(t.eventId);
+      if (e) setEvent(e);
       const b = p1Storage.getBooking(t.bookingId);
       if (b) setBooking(b);
 
@@ -166,3 +166,4 @@ export default function P1TicketPassPage() {
     </div>
   );
 }
+
