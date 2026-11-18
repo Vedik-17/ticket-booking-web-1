@@ -14,11 +14,13 @@ import {
   ShieldCheck,
   CheckCircle2,
   ArrowLeft,
+  Download,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
 import { Ticket, Event, Booking } from '@firefly/shared-types';
 import { p1Storage } from '@/lib/idb-storage';
 import { buildWhatsAppLink, buildTicketShareMessage } from '@firefly/core';
+import { generateTicketCardDataUrl, shareTicketImageDirectly } from '@/lib/image';
 
 export default function P1TicketPassPage() {
   const params = useParams();
@@ -72,6 +74,55 @@ export default function P1TicketPassPage() {
     booking?.customer.phone || '',
     buildTicketShareMessage(event.title, typeof window !== 'undefined' ? window.location.href : '', ticket.attendeeName)
   );
+
+  const handleSharePhoto = async () => {
+    if (!ticket || !event) return;
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const cardUrl = await generateTicketCardDataUrl({
+      eventTitle: event.title,
+      attendeeName: ticket.attendeeName,
+      tierName: ticket.tierName,
+      ticketNumber: ticket.ticketNumber,
+      venueName: event.venue.name,
+      dateStr: startDate,
+      qrPayload: ticket.qrPayload,
+    });
+
+    const caption =
+      `*MY FIREFLY TICKET PASS: ${event.title}*\n\n` +
+      `👤 Attendee: ${ticket.attendeeName}\n` +
+      `🎟️ Tier: ${ticket.tierName}\n` +
+      `🔢 Pass No: ${ticket.ticketNumber}\n` +
+      `📍 Venue: ${event.venue.name}\n\n` +
+      `Online Pass: ${origin}/ticket/${ticket.id}`;
+
+    await shareTicketImageDirectly({
+      imageDataUrl: cardUrl,
+      ticketNumber: ticket.ticketNumber,
+      captionText: caption,
+      targetPhone: booking?.customer.phone,
+    });
+  };
+
+  const handleDownloadPhoto = async () => {
+    if (!ticket || !event) return;
+    const cardUrl = await generateTicketCardDataUrl({
+      eventTitle: event.title,
+      attendeeName: ticket.attendeeName,
+      tierName: ticket.tierName,
+      ticketNumber: ticket.ticketNumber,
+      venueName: event.venue.name,
+      dateStr: startDate,
+      qrPayload: ticket.qrPayload,
+    });
+
+    const a = document.createElement('a');
+    a.href = cardUrl;
+    a.download = `Firefly-Pass-${ticket.ticketNumber}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
 
   return (
     <div className="max-w-md mx-auto space-y-6">
@@ -151,17 +202,22 @@ export default function P1TicketPassPage() {
       </GlassCard>
 
       {/* Buttons */}
-      <div className="grid grid-cols-2 gap-3 print:hidden">
-        <a href={waShareUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <GlassButton variant="secondary" fullWidth size="md">
-            <Share2 className="w-4 h-4 mr-2 text-emerald-400" />
-            <span>Share</span>
-          </GlassButton>
-        </a>
-        <GlassButton variant="secondary" fullWidth size="md" onClick={() => window.print()}>
-          <Printer className="w-4 h-4 mr-2 text-white/70" />
-          <span>Print</span>
+      <div className="space-y-2 print:hidden">
+        <GlassButton variant="primary" fullWidth size="lg" onClick={handleSharePhoto} className="bg-emerald-600 hover:bg-emerald-500 py-3">
+          <Share2 className="w-4 h-4 mr-2 text-white" />
+          <span className="font-bold">Share Pass Photo to WhatsApp</span>
         </GlassButton>
+
+        <div className="grid grid-cols-2 gap-2">
+          <GlassButton variant="secondary" fullWidth size="md" onClick={handleDownloadPhoto}>
+            <Download className="w-4 h-4 mr-2 text-white/70" />
+            <span>Save to Photos</span>
+          </GlassButton>
+          <GlassButton variant="secondary" fullWidth size="md" onClick={() => window.print()}>
+            <Printer className="w-4 h-4 mr-2 text-white/70" />
+            <span>Print Pass</span>
+          </GlassButton>
+        </div>
       </div>
     </div>
   );

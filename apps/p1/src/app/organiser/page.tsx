@@ -27,12 +27,19 @@ import {
   X,
   RefreshCw,
   UserCheck,
+  Copy,
+  Download,
+  Share2,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Booking, Event, TicketTier, Ticket, CheckInResponse } from '@firefly/shared-types';
 import { formatINR } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
-import { compressImageToDataUrl } from '@/lib/image';
+import {
+  compressImageToDataUrl,
+  generateTicketCardDataUrl,
+  shareTicketImageDirectly,
+} from '@/lib/image';
 
 export default function P1AdminPanelPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -50,7 +57,10 @@ export default function P1AdminPanelPage() {
     booking: Booking;
     tickets: Ticket[];
     qrDataUrls: string[];
+    passCardUrls: string[];
   } | null>(null);
+  const [copiedPhoto, setCopiedPhoto] = useState(false);
+  const [sharingPhoto, setSharingPhoto] = useState(false);
 
   // New Event Modal State
   const [showAddEventModal, setShowAddEventModal] = useState(false);
@@ -172,11 +182,95 @@ export default function P1AdminPanelPage() {
     const res = await p1Storage.confirmBookingAndGenerateTickets(bookingId);
     if (res.success && res.booking && res.tickets) {
       loadAllData();
+      const currentEvents = p1Storage.getEvents();
+      const event = currentEvents.find((e) => e.id === res.booking!.eventId);
+
+      // Pre-generate official Pass Card images with QR
+      const cards: string[] = [];
+      for (const t of res.tickets) {
+        try {
+          const cardUrl = await generateTicketCardDataUrl({
+            eventTitle: event?.title || 'Firefly Live Event',
+            attendeeName: t.attendeeName,
+            tierName: t.tierName,
+            ticketNumber: t.ticketNumber,
+            venueName: event?.venue.name || 'Event Grounds',
+            dateStr: event?.schedule.startsAt ? new Date(event.schedule.startsAt).toLocaleDateString() : 'Live Date',
+            qrPayload: t.qrPayload,
+          });
+          cards.push(cardUrl);
+        } catch {
+          cards.push(res.qrDataUrls?.[0] || '');
+        }
+      }
+
       setConfirmedModal({
         booking: res.booking,
         tickets: res.tickets,
         qrDataUrls: res.qrDataUrls || [],
+        passCardUrls: cards,
       });
+    }
+  };
+
+  // Direct Ticket Pass Image Sharing via Web Share / WhatsApp
+  const handleSharePassPhoto = async (booking: Booking, ticket: Ticket, passCardUrl?: string) => {
+    setSharingPhoto(true);
+    try {
+      const currentEvents = p1Storage.getEvents();
+      const event = currentEvents.find((e) => e.id === booking.eventId);
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const ticketUrl = `${origin}/ticket/${ticket.id}`;
+
+      let cardUrl = passCardUrl;
+      if (!cardUrl) {
+        cardUrl = await generateTicketCardDataUrl({
+          eventTitle: event?.title || 'Firefly Event',
+          attendeeName: ticket.attendeeName,
+          tierName: ticket.tierName,
+          ticketNumber: ticket.ticketNumber,
+          venueName: event?.venue.name || 'Venue',
+          dateStr: event?.schedule.startsAt ? new Date(event.schedule.startsAt).toLocaleDateString() : 'Date',
+          qrPayload: ticket.qrPayload,
+        });
+      }
+
+      const caption =
+        `*CONFIRMED TICKET PASS: ${event?.title || 'Event'}*\n\n` +
+        `👤 Attendee: ${ticket.attendeeName}\n` +
+        `🎟️ Tier: ${ticket.tierName}\n` +
+        `🔢 Pass No: ${ticket.ticketNumber}\n` +
+        `📍 Venue: ${event?.venue.name || 'Venue'}, ${event?.venue.city || 'City'}\n\n` +
+        `Digital Pass Link: ${ticketUrl}\n\n` +
+        `⚡ Scan the QR code on this ticket pass image at the entrance gate.`;
+
+      const result = await shareTicketImageDirectly({
+        imageDataUrl: cardUrl,
+        ticketNumber: ticket.ticketNumber,
+        captionText: caption,
+        targetPhone: booking.customer.phone,
+      });
+
+      if (result === 'COPIED_TO_CLIPBOARD') {
+        setCopiedPhoto(true);
+        setTimeout(() => setCopiedPhoto(false), 3000);
+      }
+    } finally {
+      setSharingPhoto(false);
+    }
+  };
+
+  const handleCopyPassImage = async (passCardUrl: string) => {
+    try {
+      const res = await fetch(passCardUrl);
+      const blob = await res.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      setCopiedPhoto(true);
+      setTimeout(() => setCopiedPhoto(false), 2500);
+    } catch {
+      alert('Could not copy image to clipboard.');
     }
   };
 
@@ -723,16 +817,25 @@ export default function P1AdminPanelPage() {
                         ) : (
                           <>
                             {firstTicket && (
-                              <a
-                                href={buildWhatsAppTicketSendUrl(b, firstTicket)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                <GlassButton size="sm" variant="primary" className="bg-emerald-600 hover:bg-emerald-500">
-                                  <MessageSquare className="w-3.5 h-3.5 mr-1" />
-                                  <span>Send Ticket via WhatsApp</span>
-                                </GlassButton>
-                              </a>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSharePassPhoto(b, firstTicket)}
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/30"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                  <span>Send Pass Photo</span>
+                                </button>
+                                <a
+                                  href={buildWhatsAppTicketSendUrl(b, firstTicket)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-white/60 hover:text-white p-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08]"
+                                  title="Send Text Link on WhatsApp"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                </a>
+                              </>
                             )}
                             <Link href={`/ticket/${firstTicket?.id || ''}`}>
                               <GlassButton size="sm" variant="secondary">
@@ -1075,31 +1178,78 @@ export default function P1AdminPanelPage() {
               </p>
             </div>
 
-            {/* Generated QR Code preview for admin */}
-            {confirmedModal.qrDataUrls.length > 0 && (
-              <div className="p-3 bg-white rounded-2xl inline-block mx-auto shadow-lg">
-                <img src={confirmedModal.qrDataUrls[0]} alt="Generated QR" className="w-48 h-48 object-contain" />
-              </div>
-            )}
+            {/* Generated Official Pass Card or QR Code preview */}
+            <div className="p-2 bg-black/40 rounded-2xl border border-white/[0.10] shadow-xl inline-block mx-auto max-w-[280px]">
+              <img
+                src={confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls[0]}
+                alt="Ticket Pass Card"
+                className="w-full h-auto rounded-xl object-contain shadow-md"
+              />
+            </div>
 
             <p className="text-xs text-white/70">
               Pass Number: <span className="font-mono font-bold text-white">{confirmedModal.tickets[0]?.ticketNumber}</span>
             </p>
 
-            {/* WhatsApp Send Button */}
+            {/* DIRECT PASS PHOTO SHARING & WHATSAPP ACTIONS */}
             <div className="pt-2 space-y-2">
+              {/* PRIMARY: Share Photo to WhatsApp (Web Share Level 2 files API) */}
+              <GlassButton
+                variant="primary"
+                fullWidth
+                size="lg"
+                onClick={() =>
+                  handleSharePassPhoto(
+                    confirmedModal.booking,
+                    confirmedModal.tickets[0],
+                    confirmedModal.passCardUrls?.[0]
+                  )
+                }
+                disabled={sharingPhoto}
+                className="bg-emerald-600 hover:bg-emerald-500 py-3 shadow-[0_4px_24px_rgba(16,185,129,0.30)]"
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Share2 className="w-4 h-4 text-white" />
+                  <span className="font-bold">
+                    {sharingPhoto ? 'Preparing Pass Photo...' : 'Send Pass Photo to WhatsApp'}
+                  </span>
+                </div>
+              </GlassButton>
+
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {/* Copy Image to Clipboard */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleCopyPassImage(
+                      confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls[0]
+                    )
+                  }
+                  className="py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.10] text-white flex items-center justify-center gap-1.5 transition-colors font-medium"
+                >
+                  {copiedPhoto ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedPhoto ? 'Photo Copied!' : 'Copy Photo'}</span>
+                </button>
+
+                {/* Download Pass Image */}
+                <a
+                  href={confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls[0]}
+                  download={`Firefly-Pass-${confirmedModal.tickets[0]?.ticketNumber}.png`}
+                  className="py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.10] text-white flex items-center justify-center gap-1.5 transition-colors font-medium text-center"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Save Photo</span>
+                </a>
+              </div>
+
+              {/* Standard text link fallback */}
               <a
                 href={buildWhatsAppTicketSendUrl(confirmedModal.booking, confirmedModal.tickets[0])}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block"
+                className="block text-xs text-white/50 hover:text-white pt-1"
               >
-                <GlassButton variant="primary" fullWidth size="lg" className="bg-emerald-600 hover:bg-emerald-500">
-                  <div className="flex items-center justify-center gap-2">
-                    <MessageSquare className="w-4 h-4" />
-                    <span>Send Ticket via WhatsApp to Customer</span>
-                  </div>
-                </GlassButton>
+                Or open WhatsApp with text link only
               </a>
 
               <GlassButton variant="secondary" fullWidth size="sm" onClick={() => setConfirmedModal(null)}>
