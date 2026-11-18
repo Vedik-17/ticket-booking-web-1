@@ -60,6 +60,8 @@ const DEFAULT_EVENTS: Event[] = [
     termsAndConditions:
       'Government photo ID mandatory at entrance. No entry without confirmed QR ticket pass.',
     featured: true,
+    upiId: 'solaris.festival@okhdfcbank',
+    upiPayeeName: 'SOLARIS 2026 FESTIVAL',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -93,6 +95,8 @@ const DEFAULT_EVENTS: Event[] = [
     },
     isAgeRestricted: false,
     featured: true,
+    upiId: 'prism.horizon@oksbi',
+    upiPayeeName: 'PRISM HORIZON EXHIBIT',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },

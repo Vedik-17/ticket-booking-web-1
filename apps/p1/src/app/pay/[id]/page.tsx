@@ -35,10 +35,10 @@ export default function P1UpiPaymentPage() {
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
 
-  // Receiving UPI config from storage engine
-  const upiId = p1Storage.defaultUpiId;
-  const payeeName = p1Storage.defaultPayeeName;
-  const adminWhatsAppPhone = p1Storage.defaultAdminPhone;
+  // Effective UPI destination (Event-specific override with fallback to system default)
+  const effectiveUpiId = event?.upiId?.trim() || p1Storage.defaultUpiId;
+  const effectivePayeeName = event?.upiPayeeName?.trim() || event?.title || p1Storage.defaultPayeeName;
+  const adminWhatsAppPhone = event?.whatsappPhone?.trim() || p1Storage.defaultAdminPhone;
 
   useEffect(() => {
     if (bookingId) {
@@ -56,11 +56,14 @@ export default function P1UpiPaymentPage() {
           }
         }
 
-        // Generate dynamic exact-amount UPI QR
+        const targetUpiId = e?.upiId?.trim() || p1Storage.defaultUpiId;
+        const targetPayee = e?.upiPayeeName?.trim() || e?.title || p1Storage.defaultPayeeName;
+
+        // Generate dynamic exact-amount UPI QR targeting this event's UPI ID
         const amountInRupees = paiseToRupees(b.totalAmountInPence);
         const uri = buildUpiUri({
-          upiId,
-          payeeName,
+          upiId: targetUpiId,
+          payeeName: targetPayee,
           amountInRupees,
           transactionNote: `Firefly ${b.bookingReference}`,
           transactionRef: b.bookingReference,
@@ -69,7 +72,7 @@ export default function P1UpiPaymentPage() {
         generateUpiQrDataUrl(uri).then(setQrDataUrl);
       }
     }
-  }, [bookingId, router, upiId, payeeName]);
+  }, [bookingId, router]);
 
   // Polling local store to auto-redirect as soon as admin confirms payment
   useEffect(() => {
@@ -87,7 +90,7 @@ export default function P1UpiPaymentPage() {
   }, [booking, router]);
 
   const copyUpiId = () => {
-    navigator.clipboard.writeText(upiId);
+    navigator.clipboard.writeText(effectiveUpiId);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -105,8 +108,8 @@ export default function P1UpiPaymentPage() {
 
   const amountInRupees = paiseToRupees(booking.totalAmountInPence);
   const upiDetails = {
-    upiId,
-    payeeName,
+    upiId: effectiveUpiId,
+    payeeName: effectivePayeeName,
     amountInRupees,
     transactionNote: `Firefly ${booking.bookingReference}`,
     transactionRef: booking.bookingReference,
@@ -122,11 +125,12 @@ export default function P1UpiPaymentPage() {
   // Preloaded WhatsApp Message specifying tickets, customer name, and mobile number
   const ticketsSummary = booking.items.map((i) => `${i.quantity}x ${i.tierName}`).join(', ');
   const preloadedWhatsAppText =
-    `Hello ${payeeName},\n\nI have initiated payment for my booking:\n` +
+    `Hello ${effectivePayeeName},\n\nI have initiated payment for my booking:\n` +
     `• Booking Ref: ${booking.bookingReference}\n` +
     `• Customer Name: ${booking.customer.fullName}\n` +
     `• Mobile Number: ${booking.customer.phone}\n` +
     `• Event: ${event?.title || 'Event'}\n` +
+    `• Destination UPI ID: ${effectiveUpiId}\n` +
     `• Tickets: ${ticketsSummary}\n` +
     `• Total Amount: ${formatINR(booking.totalAmountInPence)}\n\n` +
     `Here is my UPI payment confirmation screenshot for manual verification.`;
@@ -189,8 +193,10 @@ export default function P1UpiPaymentPage() {
         {/* Copy UPI ID bar */}
         <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-xs">
           <div className="text-left font-mono truncate mr-2">
-            <span className="text-[10px] text-white/40 block">Payee UPI ID</span>
-            <span className="text-white font-semibold text-xs">{upiId}</span>
+            <span className="text-[10px] text-white/40 block">
+              Payee: <strong className="text-white font-sans">{effectivePayeeName}</strong>
+            </span>
+            <span className="text-emerald-400 font-semibold text-xs">{effectiveUpiId}</span>
           </div>
           <button
             onClick={copyUpiId}

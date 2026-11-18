@@ -79,6 +79,8 @@ export default function P1AdminPanelPage() {
     googleMapsUrl: '',
     startsAt: '2026-12-20T18:00',
     endsAt: '2026-12-21T02:00',
+    upiId: '',
+    upiPayeeName: '',
     tier1Name: 'General Admission',
     tier1Price: '1999',
     tier1Capacity: '500',
@@ -107,6 +109,8 @@ export default function P1AdminPanelPage() {
     googleMapsUrl: '',
     startsAt: '',
     endsAt: '',
+    upiId: '',
+    upiPayeeName: '',
     tiers: [] as Array<{
       id?: string;
       name: string;
@@ -324,6 +328,8 @@ export default function P1AdminPanelPage() {
       status: 'PUBLISHED',
       posterUrl: newEvent.posterUrl,
       galleryUrls: [],
+      upiId: newEvent.upiId.trim() || undefined,
+      upiPayeeName: newEvent.upiPayeeName.trim() || undefined,
       venue: {
         name: newEvent.venueName,
         address: newEvent.address,
@@ -408,6 +414,8 @@ export default function P1AdminPanelPage() {
       googleMapsUrl: evt.venue.googleMapsUrl || '',
       startsAt: formatForInput(evt.schedule.startsAt),
       endsAt: formatForInput(evt.schedule.endsAt),
+      upiId: evt.upiId || '',
+      upiPayeeName: evt.upiPayeeName || '',
       tiers: eventTiers.map((t) => ({
         id: t.id,
         name: t.name,
@@ -480,6 +488,8 @@ export default function P1AdminPanelPage() {
       description: editForm.description,
       category: editForm.category as any,
       posterUrl: editForm.posterUrl || editingEvent.posterUrl,
+      upiId: editForm.upiId.trim() || undefined,
+      upiPayeeName: editForm.upiPayeeName.trim() || undefined,
       venue: {
         ...editingEvent.venue,
         name: editForm.venueName,
@@ -934,6 +944,14 @@ export default function P1AdminPanelPage() {
                             {t.name}: <span className="text-[#FF9A45] font-semibold">{formatINR(t.priceInPence)}</span>
                           </span>
                         ))}
+                      </div>
+
+                      {/* Event UPI destination badge */}
+                      <div className="pt-0.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
+                          <QrCode className="w-2.5 h-2.5 text-emerald-400" />
+                          <span>UPI: {evt.upiId || 'System Default'}</span>
+                        </span>
                       </div>
                     </div>
 
@@ -1606,6 +1624,33 @@ export default function P1AdminPanelPage() {
                 helperText="Redirects attendees directly to Google Maps navigation"
               />
 
+              {/* Event UPI Payment Redirection Config */}
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
+                <div className="flex items-center gap-2 text-white font-semibold text-xs">
+                  <QrCode className="w-4 h-4 text-[#FF9A45]" />
+                  <span>UPI Payment Destination (Event Redirection)</span>
+                </div>
+                <p className="text-[11px] text-white/50">
+                  Ticket bookings for this event will redirect payments and generate UPI QR codes for this specific UPI ID.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <GlassInput
+                    label="Event UPI ID / VPA"
+                    placeholder="e.g. solaris.festival@okhdfcbank"
+                    value={editForm.upiId}
+                    onChange={(e) => setEditForm({ ...editForm, upiId: e.target.value })}
+                    helperText="Leave blank for system default UPI"
+                  />
+                  <GlassInput
+                    label="Payee / Merchant Name"
+                    placeholder="e.g. SOLARIS FESTIVAL"
+                    value={editForm.upiPayeeName}
+                    onChange={(e) => setEditForm({ ...editForm, upiPayeeName: e.target.value })}
+                    helperText="Name displayed in UPI payment apps"
+                  />
+                </div>
+              </div>
+
               {/* Dynamic Ticket Tiers Section */}
               <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
                 <div className="flex items-center justify-between">
@@ -1817,6 +1862,33 @@ export default function P1AdminPanelPage() {
                 onChange={(e) => setNewEvent({ ...newEvent, googleMapsUrl: e.target.value })}
                 helperText="Redirects customer directly to Google Maps pin"
               />
+
+              {/* Event UPI Payment Redirection Config */}
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
+                <div className="flex items-center gap-2 text-white font-semibold text-xs">
+                  <QrCode className="w-4 h-4 text-[#FF9A45]" />
+                  <span>UPI Payment Destination (Event Redirection)</span>
+                </div>
+                <p className="text-[11px] text-white/50">
+                  Payments for this event will be directed to this UPI ID across all mobile UPI apps and the generated QR code.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <GlassInput
+                    label="Event UPI ID / VPA"
+                    placeholder="e.g. eventorganizer@oksbi"
+                    value={newEvent.upiId}
+                    onChange={(e) => setNewEvent({ ...newEvent, upiId: e.target.value })}
+                    helperText="Leave blank for system default UPI"
+                  />
+                  <GlassInput
+                    label="Payee / Merchant Name"
+                    placeholder="e.g. Event Productions"
+                    value={newEvent.upiPayeeName}
+                    onChange={(e) => setNewEvent({ ...newEvent, upiPayeeName: e.target.value })}
+                    helperText="Name displayed in UPI payment apps"
+                  />
+                </div>
+              </div>
 
               {/* Ticket Tiers Rates */}
               <div className="pt-2 border-t border-white/[0.08] space-y-2">

@@ -89,6 +89,9 @@ export interface Event {
   minimumAge?: number;
   termsAndConditions?: string;
   featured: boolean;
+  upiId?: string; // Event-specific UPI ID for payment redirection e.g. "solaris@okhdfcbank"
+  upiPayeeName?: string; // Event-specific merchant/payee name
+  whatsappPhone?: string; // Event-specific organiser WhatsApp contact
   createdAt: string;
   updatedAt: string;
 }
