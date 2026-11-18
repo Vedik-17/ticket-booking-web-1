@@ -15,6 +15,7 @@ import {
   Sparkles,
   ArrowLeft,
   Zap,
+  Pencil,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Event, TicketTier } from '@firefly/shared-types';
@@ -132,14 +133,22 @@ export default function P1EventDetailPage() {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Back button */}
-      <div>
+      {/* Top navigation bar */}
+      <div className="flex items-center justify-between">
         <Link
           href="/"
           className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to All Events</span>
+        </Link>
+
+        <Link
+          href={`/organiser?edit=${event.id}`}
+          className="inline-flex items-center gap-1.5 text-xs text-[#FF9A45] hover:text-white px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:border-[#FF6A1A]/40 transition-all font-medium"
+        >
+          <Pencil className="w-3.5 h-3.5 text-[#FF9A45]" />
+          <span>Edit Event</span>
         </Link>
       </div>
 

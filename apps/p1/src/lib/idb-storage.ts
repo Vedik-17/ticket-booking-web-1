@@ -286,6 +286,80 @@ class P1MultiEventStore {
     return newTier;
   }
 
+  public updateTier(tierId: string, updates: Partial<TicketTier>): TicketTier | null {
+    const state = this.loadState();
+    const idx = state.tiers.findIndex((t) => t.id === tierId);
+    if (idx === -1) return null;
+
+    state.tiers[idx] = {
+      ...state.tiers[idx],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    this.persist(state);
+    return state.tiers[idx];
+  }
+
+  public deleteTier(tierId: string): boolean {
+    const state = this.loadState();
+    state.tiers = state.tiers.filter((t) => t.id !== tierId);
+    this.persist(state);
+    return true;
+  }
+
+  public syncEventTiers(
+    eventId: string,
+    tierInputs: Array<{
+      id?: string;
+      name: string;
+      priceInPence: number;
+      capacity: number;
+    }>
+  ): TicketTier[] {
+    const state = this.loadState();
+    const existingForEvent = state.tiers.filter((t) => t.eventId === eventId);
+    const updatedTiers: TicketTier[] = [];
+    const otherTiers = state.tiers.filter((t) => t.eventId !== eventId);
+
+    for (const input of tierInputs) {
+      if (input.id) {
+        const existing = existingForEvent.find((t) => t.id === input.id);
+        if (existing) {
+          existing.name = input.name;
+          existing.priceInPence = input.priceInPence;
+          existing.capacity = input.capacity;
+          existing.updatedAt = new Date().toISOString();
+          updatedTiers.push(existing);
+          continue;
+        }
+      }
+
+      const newTier: TicketTier = {
+        id: `tier-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`,
+        eventId,
+        name: input.name,
+        priceInPence: input.priceInPence,
+        currency: 'INR',
+        capacity: input.capacity,
+        reservedCount: 0,
+        soldCount: 0,
+        minPerBooking: 1,
+        maxPerBooking: 6,
+        salesStartAt: new Date().toISOString(),
+        salesEndAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'ACTIVE',
+        perks: ['Standard Entry'],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      updatedTiers.push(newTier);
+    }
+
+    state.tiers = [...otherTiers, ...updatedTiers];
+    this.persist(state);
+    return updatedTiers;
+  }
+
   // --- BOOKINGS (NO EMAIL - ONLY NAME & PHONE) ---
   public createBooking(params: {
     eventId: string;

@@ -22,6 +22,8 @@ import {
   ImageIcon,
   ExternalLink,
   Trash2,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Booking, Event, TicketTier, Ticket, CheckInResponse } from '@firefly/shared-types';
@@ -59,10 +61,8 @@ export default function P1AdminPanelPage() {
     address: '',
     city: 'Hyderabad',
     googleMapsUrl: '',
-    doorsOpenAt: '17:00',
     startsAt: '2026-12-20T18:00',
     endsAt: '2026-12-21T02:00',
-    // Dynamic Tiers
     tier1Name: 'General Admission',
     tier1Price: '1999',
     tier1Capacity: '500',
@@ -73,18 +73,59 @@ export default function P1AdminPanelPage() {
   const [bannerPreview, setBannerPreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // Edit Event Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [editBannerPreview, setEditBannerPreview] = useState<string>('');
+  const [uploadingEditImage, setUploadingEditImage] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    tagline: '',
+    description: '',
+    category: 'MUSIC_FESTIVAL',
+    posterUrl: '',
+    venueName: '',
+    address: '',
+    city: 'Hyderabad',
+    googleMapsUrl: '',
+    startsAt: '',
+    endsAt: '',
+    tiers: [] as Array<{
+      id?: string;
+      name: string;
+      priceInRupees: string;
+      capacity: string;
+    }>,
+  });
+
   // Scanner State
   const [manualCode, setManualCode] = useState('');
   const [scanResult, setScanResult] = useState<CheckInResponse | null>(null);
 
   const loadAllData = () => {
     setBookings(p1Storage.getBookings());
-    setEvents(p1Storage.getEvents());
+    const evts = p1Storage.getEvents();
+    setEvents(evts);
     setTiers(p1Storage.getTiers());
+    return evts;
   };
 
   useEffect(() => {
-    loadAllData();
+    const loadedEvents = loadAllData();
+
+    // Check if URL has ?edit=<eventId>
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const editId = urlParams.get('edit');
+      if (editId) {
+        setActiveTab('events');
+        const target = loadedEvents.find((e) => e.id === editId || e.slug === editId);
+        if (target) {
+          openEditEvent(target);
+        }
+      }
+    }
   }, [isAuthenticated]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
@@ -120,7 +161,7 @@ export default function P1AdminPanelPage() {
       const dataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
       setBannerPreview(dataUrl);
       setNewEvent((prev) => ({ ...prev, posterUrl: dataUrl }));
-    } catch (err) {
+    } catch {
       alert('Could not compress image');
     } finally {
       setUploadingImage(false);
@@ -200,6 +241,138 @@ export default function P1AdminPanelPage() {
     setShowAddEventModal(false);
     loadAllData();
     alert('Event created and published successfully!');
+  };
+
+  // Helper to open Edit Modal with populated data
+  const openEditEvent = (evt: Event) => {
+    const eventTiers = p1Storage.getTiers(evt.id);
+    setEditingEvent(evt);
+    setEditBannerPreview(evt.posterUrl);
+
+    const formatForInput = (isoStr: string) => {
+      try {
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '';
+        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      } catch {
+        return '';
+      }
+    };
+
+    setEditForm({
+      title: evt.title,
+      tagline: evt.tagline || '',
+      description: evt.description,
+      category: evt.category,
+      posterUrl: evt.posterUrl,
+      venueName: evt.venue.name,
+      address: evt.venue.address || '',
+      city: evt.venue.city,
+      googleMapsUrl: evt.venue.googleMapsUrl || '',
+      startsAt: formatForInput(evt.schedule.startsAt),
+      endsAt: formatForInput(evt.schedule.endsAt),
+      tiers: eventTiers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        priceInRupees: (t.priceInPence / 100).toString(),
+        capacity: t.capacity.toString(),
+      })),
+    });
+    setShowEditModal(true);
+  };
+
+  // Banner upload inside Edit Modal
+  const handleEditBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingEditImage(true);
+    try {
+      const dataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
+      setEditBannerPreview(dataUrl);
+      setEditForm((prev) => ({ ...prev, posterUrl: dataUrl }));
+    } catch {
+      alert('Could not compress image');
+    } finally {
+      setUploadingEditImage(false);
+    }
+  };
+
+  // Tier manipulation inside Edit Modal
+  const handleAddTierToEdit = () => {
+    setEditForm((prev) => ({
+      ...prev,
+      tiers: [
+        ...prev.tiers,
+        {
+          name: 'Additional Tier',
+          priceInRupees: '999',
+          capacity: '100',
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveTierFromEdit = (index: number) => {
+    setEditForm((prev) => ({
+      ...prev,
+      tiers: prev.tiers.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleEditTierField = (index: number, field: 'name' | 'priceInRupees' | 'capacity', value: string) => {
+    setEditForm((prev) => {
+      const updated = [...prev.tiers];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...prev, tiers: updated };
+    });
+  };
+
+  // Save changes to edited event
+  const handleSaveEditedEvent = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEvent) return;
+    if (!editForm.title.trim() || !editForm.venueName.trim()) {
+      alert('Please fill in title and venue');
+      return;
+    }
+
+    p1Storage.updateEvent(editingEvent.id, {
+      title: editForm.title,
+      tagline: editForm.tagline,
+      description: editForm.description,
+      category: editForm.category as any,
+      posterUrl: editForm.posterUrl || editingEvent.posterUrl,
+      venue: {
+        ...editingEvent.venue,
+        name: editForm.venueName,
+        address: editForm.address,
+        city: editForm.city,
+        googleMapsUrl: editForm.googleMapsUrl || `https://maps.google.com/?q=${encodeURIComponent(editForm.venueName + ' ' + editForm.city)}`,
+      },
+      schedule: {
+        ...editingEvent.schedule,
+        startsAt: new Date(editForm.startsAt).toISOString(),
+        endsAt: new Date(editForm.endsAt).toISOString(),
+      },
+    });
+
+    if (editForm.tiers.length > 0) {
+      p1Storage.syncEventTiers(
+        editingEvent.id,
+        editForm.tiers.map((t) => ({
+          id: t.id,
+          name: t.name,
+          priceInPence: Math.round(Number(t.priceInRupees) * 100),
+          capacity: Number(t.capacity) || 100,
+        }))
+      );
+    }
+
+    setShowEditModal(false);
+    setEditingEvent(null);
+    loadAllData();
+    alert(`"${editForm.title}" updated successfully!`);
   };
 
   // Gate Scanner
@@ -436,7 +609,7 @@ export default function P1AdminPanelPage() {
         </div>
       )}
 
-      {/* TAB 2: MANAGE & ADD EVENTS */}
+      {/* TAB 2: MANAGE & EDIT EVENTS */}
       {activeTab === 'events' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -450,50 +623,81 @@ export default function P1AdminPanelPage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {events.map((evt) => (
-              <GlassCard key={evt.id} padding="none" className="flex flex-col text-xs">
-                <div className="relative h-36 w-full overflow-hidden bg-neutral-900">
-                  <img src={evt.posterUrl} alt={evt.title} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent opacity-80" />
-                  <div className="absolute top-2.5 left-2.5">
-                    <GlassBadge variant="accent" size="sm">{evt.category}</GlassBadge>
-                  </div>
-                </div>
+            {events.map((evt) => {
+              const eventTiers = tiers.filter((t) => t.eventId === evt.id);
 
-                <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                  <div className="space-y-1">
-                    <h3 className="font-bold text-white text-sm line-clamp-1">{evt.title}</h3>
-                    <p className="text-white/60 line-clamp-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3 text-[#FF9A45]" />
-                      <span>{evt.venue.name}, {evt.venue.city}</span>
-                    </p>
-                    <p className="text-white/40 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
-                      <span>{new Date(evt.schedule.startsAt).toLocaleDateString()}</span>
-                    </p>
+              return (
+                <GlassCard key={evt.id} padding="none" className="flex flex-col text-xs">
+                  <div className="relative h-36 w-full overflow-hidden bg-neutral-900">
+                    <img src={evt.posterUrl} alt={evt.title} className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent opacity-80" />
+                    <div className="absolute top-2.5 left-2.5">
+                      <GlassBadge variant="accent" size="sm">{evt.category.replace('_', ' ')}</GlassBadge>
+                    </div>
                   </div>
 
-                  <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
-                    <Link href={`/event/${evt.slug || evt.id}`} className="text-[#FF9A45] hover:underline font-semibold flex items-center gap-1">
-                      <span>Preview Page</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </Link>
+                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                    <div className="space-y-1.5">
+                      <h3 className="font-bold text-white text-sm line-clamp-1">{evt.title}</h3>
+                      <p className="text-white/60 line-clamp-1 flex items-center gap-1">
+                        <MapPin className="w-3 h-3 text-[#FF9A45]" />
+                        <span>{evt.venue.name}, {evt.venue.city}</span>
+                      </p>
+                      <p className="text-white/40 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        <span>{new Date(evt.schedule.startsAt).toLocaleDateString()}</span>
+                      </p>
 
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete event "${evt.title}"?`)) {
-                          p1Storage.deleteEvent(evt.id);
-                          loadAllData();
-                        }
-                      }}
-                      className="text-white/40 hover:text-red-400 p-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      {/* Tiers summary */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {eventTiers.map((t) => (
+                          <span
+                            key={t.id}
+                            className="px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-[10px] text-white/70"
+                          >
+                            {t.name}: <span className="text-[#FF9A45] font-semibold">{formatINR(t.priceInPence)}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {/* EDIT EVENT BUTTON */}
+                        <button
+                          onClick={() => openEditEvent(evt)}
+                          className="px-2.5 py-1 rounded-lg bg-[#FF6A1A]/15 hover:bg-[#FF6A1A]/25 border border-[#FF6A1A]/30 text-[#FF9A45] hover:text-white font-medium text-xs flex items-center gap-1 transition-all"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+
+                        <Link
+                          href={`/event/${evt.slug || evt.id}`}
+                          className="text-white/60 hover:text-white flex items-center gap-1 text-xs"
+                        >
+                          <span>Preview</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete event "${evt.title}"?`)) {
+                            p1Storage.deleteEvent(evt.id);
+                            loadAllData();
+                          }
+                        }}
+                        className="text-white/40 hover:text-red-400 p-1 transition-colors"
+                        title="Delete Event"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </GlassCard>
-            ))}
+                </GlassCard>
+              );
+            })}
           </div>
         </div>
       )}
@@ -610,7 +814,248 @@ export default function P1AdminPanelPage() {
         </div>
       )}
 
-      {/* MODAL: ADD NEW EVENT (WITH PHOTO UPLOAD, TIMINGS, MAPS, UPI & TIERS) */}
+      {/* MODAL: EDIT EXISTING EVENT */}
+      {showEditModal && editingEvent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+          <GlassCard className="max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-[#FF9A45]" />
+                <h3 className="text-base font-bold text-white">Edit Event Details</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingEvent(null);
+                }}
+                className="text-white/60 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditedEvent} className="space-y-4 text-xs">
+              {/* Photo Upload & Preview */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-white/70 uppercase">Banner Photo</label>
+                <div className="relative h-40 rounded-xl overflow-hidden border border-white/[0.12] bg-neutral-900 group">
+                  <img
+                    src={editBannerPreview || editForm.posterUrl}
+                    alt="Banner Preview"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => editFileInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-lg bg-white/20 text-white text-xs border border-white/30 backdrop-blur-sm"
+                    >
+                      Change Photo
+                    </button>
+                  </div>
+                </div>
+
+                <input
+                  ref={editFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleEditBannerUpload}
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => editFileInputRef.current?.click()}
+                  className="w-full py-2 rounded-xl border border-dashed border-white/20 hover:border-[#FF6A1A]/60 text-white/70 hover:text-white flex items-center justify-center gap-1.5 text-xs transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
+                  <span>{uploadingEditImage ? 'Compressing image...' : 'Upload New Banner Photo'}</span>
+                </button>
+              </div>
+
+              {/* Title & Tagline */}
+              <GlassInput
+                label="Event Title"
+                placeholder="e.g. SOLARIS 2026"
+                value={editForm.title}
+                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                required
+              />
+
+              <GlassInput
+                label="Tagline"
+                placeholder="Short captivating headline"
+                value={editForm.tagline}
+                onChange={(e) => setEditForm({ ...editForm, tagline: e.target.value })}
+              />
+
+              {/* Category */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-white/70 uppercase">Category</label>
+                <select
+                  value={editForm.category}
+                  onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                  className="w-full py-2.5 px-3 rounded-xl bg-white/[0.05] border border-white/[0.10] text-xs text-white focus:outline-none focus:border-[#FF6A1A]"
+                >
+                  <option value="MUSIC_FESTIVAL" className="bg-[#181818] text-white">Music Festival</option>
+                  <option value="EXHIBITION" className="bg-[#181818] text-white">Exhibition</option>
+                  <option value="PARTY" className="bg-[#181818] text-white">Party</option>
+                  <option value="CONFERENCE" className="bg-[#181818] text-white">Conference</option>
+                  <option value="PERFORMANCE" className="bg-[#181818] text-white">Performance</option>
+                  <option value="OTHER" className="bg-[#181818] text-white">Other</option>
+                </select>
+              </div>
+
+              {/* Timings */}
+              <div className="grid grid-cols-2 gap-2">
+                <GlassInput
+                  label="Start Date & Time"
+                  type="datetime-local"
+                  value={editForm.startsAt}
+                  onChange={(e) => setEditForm({ ...editForm, startsAt: e.target.value })}
+                  required
+                />
+                <GlassInput
+                  label="End Date & Time"
+                  type="datetime-local"
+                  value={editForm.endsAt}
+                  onChange={(e) => setEditForm({ ...editForm, endsAt: e.target.value })}
+                  required
+                />
+              </div>
+
+              {/* Venue & Google Maps Pin */}
+              <div className="grid grid-cols-2 gap-2">
+                <GlassInput
+                  label="Venue Name"
+                  placeholder="e.g. GMR Arena Grounds"
+                  value={editForm.venueName}
+                  onChange={(e) => setEditForm({ ...editForm, venueName: e.target.value })}
+                  required
+                />
+                <GlassInput
+                  label="City"
+                  placeholder="Hyderabad"
+                  value={editForm.city}
+                  onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                  required
+                />
+              </div>
+
+              <GlassInput
+                label="Venue Address"
+                placeholder="Full address line"
+                value={editForm.address}
+                onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+              />
+
+              <GlassInput
+                label="Google Maps Location Pin URL"
+                placeholder="https://maps.google.com/?q=..."
+                value={editForm.googleMapsUrl}
+                onChange={(e) => setEditForm({ ...editForm, googleMapsUrl: e.target.value })}
+                helperText="Redirects attendees directly to Google Maps navigation"
+              />
+
+              {/* Dynamic Ticket Tiers Section */}
+              <div className="pt-2 border-t border-white/[0.08] space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-white uppercase tracking-wider block">
+                    Ticket Tiers & Rates
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAddTierToEdit}
+                    className="text-[#FF9A45] hover:text-white flex items-center gap-1 font-medium text-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add Tier</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {editForm.tiers.map((tier, idx) => (
+                    <div
+                      key={tier.id || idx}
+                      className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-white/40 uppercase font-semibold">
+                          Tier #{idx + 1}
+                        </span>
+                        {editForm.tiers.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTierFromEdit(idx)}
+                            className="text-white/40 hover:text-red-400 p-0.5"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <GlassInput
+                          label="Tier Name"
+                          value={tier.name}
+                          onChange={(e) => handleEditTierField(idx, 'name', e.target.value)}
+                          required
+                        />
+                        <GlassInput
+                          label="Rate (₹)"
+                          type="number"
+                          value={tier.priceInRupees}
+                          onChange={(e) => handleEditTierField(idx, 'priceInRupees', e.target.value)}
+                          required
+                        />
+                        <GlassInput
+                          label="Capacity"
+                          type="number"
+                          value={tier.capacity}
+                          onChange={(e) => handleEditTierField(idx, 'capacity', e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-white/70 uppercase">Event Description</label>
+                <textarea
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  placeholder="Detailed event information..."
+                  className="w-full rounded-xl bg-white/[0.05] border border-white/[0.10] p-2.5 text-xs text-white focus:outline-none focus:border-[#FF6A1A]"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <GlassButton
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingEvent(null);
+                  }}
+                >
+                  Cancel
+                </GlassButton>
+                <GlassButton type="submit" variant="primary" fullWidth>
+                  Save Changes
+                </GlassButton>
+              </div>
+            </form>
+          </GlassCard>
+        </div>
+      )}
+
+      {/* MODAL: ADD NEW EVENT */}
       {showAddEventModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
           <GlassCard className="max-w-lg w-full space-y-4 max-h-[90vh] overflow-y-auto">
