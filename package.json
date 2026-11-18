@@ -1,0 +1,32 @@
+{
+  "name": "firefly-monorepo",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "FIREFLY — Premium Event Ticketing Platform (V1 Platform & P1 Rapid Prototype Monorepo)",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@firefly/v1",
+    "dev:v1": "npm run dev --workspace=@firefly/v1",
+    "build": "npm run build --workspace=@firefly/v1",
+    "test": "npm run test --workspace=@firefly/v1",
+    "lint": "npm run lint --workspace=@firefly/v1",
+    "typecheck": "npm run typecheck --workspace=@firefly/v1"
+  },
+  "keywords": [
+    "ticketing",
+    "events",
+    "nextjs",
+    "supabase",
+    "razorpay",
+    "qr-tickets"
+  ],
+  "author": "FIREFLY Engineering Team",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "tsx": "^4.23.15"
+  }
+}

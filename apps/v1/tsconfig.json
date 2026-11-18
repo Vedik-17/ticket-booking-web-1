@@ -1,0 +1,38 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@firefly/shared-types": ["../../packages/shared-types/src"],
+      "@firefly/core": ["../../packages/core/src"],
+      "@firefly/design-system": ["../../packages/design-system/src"],
+      "@firefly/event-engine": ["../../packages/event-engine/src"],
+      "@firefly/inventory-engine": ["../../packages/inventory-engine/src"],
+      "@firefly/booking-engine": ["../../packages/booking-engine/src"],
+      "@firefly/payment-engine": ["../../packages/payment-engine/src"],
+      "@firefly/ticket-engine": ["../../packages/ticket-engine/src"],
+      "@firefly/scanner-engine": ["../../packages/scanner-engine/src"],
+      "@firefly/ui": ["../../packages/ui/src"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
