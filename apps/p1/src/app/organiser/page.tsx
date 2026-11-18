@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   ShieldCheck,
@@ -15,11 +15,17 @@ import {
   Users,
   Check,
   RefreshCw,
+  Upload,
+  ImageIcon,
+  MapPin,
+  Calendar,
+  Sparkles,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Booking, Event, TicketTier, CheckInResponse } from '@firefly/shared-types';
 import { formatINR } from '@firefly/core';
 import { p1Storage, P1OrganiserConfig } from '@/lib/idb-storage';
+import { compressImageToDataUrl } from '@/lib/image';
 
 export default function P1OrganiserPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -36,11 +42,25 @@ export default function P1OrganiserPage() {
   const [manualCode, setManualCode] = useState('');
   const [scanResult, setScanResult] = useState<CheckInResponse | null>(null);
 
+  // Banner Upload State
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
   const loadData = () => {
-    setBookings(p1Storage.getBookings());
-    setEvent(p1Storage.getEvent());
-    setTiers(p1Storage.getTiers());
-    setConfig(p1Storage.getConfig());
+    const b = p1Storage.getBookings();
+    const e = p1Storage.getEvent();
+    const t = p1Storage.getTiers();
+    const c = p1Storage.getConfig();
+
+    setBookings(b);
+    setEvent(e);
+    setTiers(t);
+    setConfig(c);
+    if (e?.posterUrl) {
+      setBannerPreview(e.posterUrl);
+    }
   };
 
   useEffect(() => {
@@ -74,11 +94,48 @@ export default function P1OrganiserPage() {
     loadData();
   };
 
-  const handleUpdateConfig = (e: React.FormEvent) => {
+  // Image Upload Handler
+  const handleBannerFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      const compressedDataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
+      setBannerPreview(compressedDataUrl);
+      if (event) {
+        setEvent({
+          ...event,
+          posterUrl: compressedDataUrl,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to compress image:', err);
+      alert('Could not process image file. Please try another image.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleSaveAllSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!config) return;
+    if (!config || !event) return;
+
+    // Save event details including new banner photo
+    p1Storage.updateEvent({
+      title: event.title,
+      tagline: event.tagline,
+      description: event.description,
+      posterUrl: bannerPreview || event.posterUrl,
+      venue: event.venue,
+    });
+
+    // Save UPI config
     p1Storage.updateConfig(config);
-    alert('Settings saved to local storage.');
+
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3000);
+    loadData();
   };
 
   // Organiser PIN Gate
@@ -134,10 +191,10 @@ export default function P1OrganiserPage() {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl font-bold text-white">Organiser Console</h1>
-            <GlassBadge variant="accent">P1 Single Device</GlassBadge>
+            <GlassBadge variant="accent">P1 Rapid Prototype</GlassBadge>
           </div>
           <p className="text-xs text-white/50 pt-0.5">
-            Manual UPI verification, gate check-in scanner & tier rates.
+            Event banner upload, manual UPI verification, gate check-in scanner & tier rates.
           </p>
         </div>
 
@@ -167,7 +224,7 @@ export default function P1OrganiserPage() {
             }`}
           >
             <Settings className="w-3.5 h-3.5" />
-            <span>UPI & Event</span>
+            <span>Event & Banner</span>
           </button>
         </div>
       </div>
@@ -301,17 +358,159 @@ export default function P1OrganiserPage() {
         </div>
       )}
 
-      {/* TAB 3: SETTINGS */}
+      {/* TAB 3: SETTINGS & BANNER UPLOAD */}
       {activeTab === 'settings' && config && event && (
-        <div className="space-y-4 max-w-xl mx-auto">
-          <form onSubmit={handleUpdateConfig}>
+        <div className="space-y-6 max-w-xl mx-auto">
+          <form onSubmit={handleSaveAllSettings} className="space-y-6">
+            {/* Event Banner Photo Upload Card */}
             <GlassCard className="space-y-4">
-              <h2 className="text-sm font-bold text-white uppercase tracking-wider">UPI & Organiser Setup</h2>
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-[#FF9A45]" />
+                  <span>Event Banner Photo Upload</span>
+                </h2>
+                <GlassBadge variant="accent">Cover Visual</GlassBadge>
+              </div>
+
+              {/* Current Banner Preview */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-white/70 uppercase">Banner Preview</label>
+                <div className="relative h-44 rounded-xl overflow-hidden border border-white/[0.12] bg-neutral-900 group">
+                  {bannerPreview ? (
+                    <img src={bannerPreview} alt="Event Banner" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-white/40 space-y-1">
+                      <ImageIcon className="w-8 h-8" />
+                      <span className="text-xs">No banner image uploaded</span>
+                    </div>
+                  )}
+
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3.5 py-1.5 rounded-lg bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-medium border border-white/30 flex items-center gap-1.5"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Replace Photo</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleBannerFileChange}
+                className="hidden"
+              />
+
+              {/* Drag and Drop / Click Upload Box */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-5 rounded-xl border border-dashed border-white/20 hover:border-[#FF6A1A]/60 bg-white/[0.02] hover:bg-white/[0.04] text-center cursor-pointer transition-all space-y-2"
+              >
+                <div className="w-10 h-10 rounded-xl bg-white/[0.06] border border-white/[0.08] flex items-center justify-center mx-auto text-[#FF9A45]">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-white">Click to upload custom event banner</p>
+                  <p className="text-[11px] text-white/40">PNG, JPG, WebP (Automatically compressed and optimized)</p>
+                </div>
+                {uploadingImage && (
+                  <p className="text-xs text-[#FF9A45] animate-pulse">Compressing and processing photo...</p>
+                )}
+              </div>
+            </GlassCard>
+
+            {/* Event Info Card */}
+            <GlassCard className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-[#FF9A45]" />
+                  <span>Event Details</span>
+                </h2>
+              </div>
+
+              <GlassInput
+                label="Event Title"
+                value={event.title}
+                onChange={(e) => setEvent({ ...event, title: e.target.value })}
+                required
+              />
+              <GlassInput
+                label="Tagline"
+                value={event.tagline || ''}
+                onChange={(e) => setEvent({ ...event, tagline: e.target.value })}
+              />
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-white/70 tracking-wide uppercase">
+                  Description
+                </label>
+                <textarea
+                  rows={3}
+                  value={event.description}
+                  onChange={(e) => setEvent({ ...event, description: e.target.value })}
+                  className="w-full rounded-xl bg-white/[0.04] px-4 py-3 text-xs text-white placeholder-white/30 backdrop-blur-md border border-white/[0.08] focus:border-[#FF6A1A]/50 outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <GlassInput
+                  label="Venue Name"
+                  value={event.venue.name}
+                  onChange={(e) =>
+                    setEvent({
+                      ...event,
+                      venue: { ...event.venue, name: e.target.value },
+                    })
+                  }
+                  required
+                />
+                <GlassInput
+                  label="City"
+                  value={event.venue.city}
+                  onChange={(e) =>
+                    setEvent({
+                      ...event,
+                      venue: { ...event.venue, city: e.target.value },
+                    })
+                  }
+                  required
+                />
+              </div>
+
+              <GlassInput
+                label="Google Maps Pin URL"
+                value={event.venue.googleMapsUrl || ''}
+                onChange={(e) =>
+                  setEvent({
+                    ...event,
+                    venue: { ...event.venue, googleMapsUrl: e.target.value },
+                  })
+                }
+                helperText="Link attendees can tap to open Google Maps"
+              />
+            </GlassCard>
+
+            {/* UPI & Payment Settings */}
+            <GlassCard className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-emerald-400" />
+                  <span>UPI Payment Details</span>
+                </h2>
+                <GlassBadge variant="success">Direct Payee</GlassBadge>
+              </div>
 
               <GlassInput
                 label="Receiving UPI ID"
                 value={config.upiId}
                 onChange={(e) => setConfig({ ...config, upiId: e.target.value })}
+                helperText="UPI ID printed in the autogenerated payment QR code"
                 required
               />
               <GlassInput
@@ -324,6 +523,7 @@ export default function P1OrganiserPage() {
                 label="WhatsApp Business Phone"
                 value={config.whatsappPhone}
                 onChange={(e) => setConfig({ ...config, whatsappPhone: e.target.value })}
+                helperText="Phone number customers message payment screenshots to"
                 required
               />
               <GlassInput
@@ -332,11 +532,18 @@ export default function P1OrganiserPage() {
                 onChange={(e) => setConfig({ ...config, pin: e.target.value })}
                 required
               />
-
-              <GlassButton type="submit" variant="primary" fullWidth size="md">
-                Save Settings
-              </GlassButton>
             </GlassCard>
+
+            {savedSuccess && (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-xs text-emerald-200 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <span>Event details and banner photo successfully saved!</span>
+              </div>
+            )}
+
+            <GlassButton type="submit" variant="primary" fullWidth size="lg">
+              Save Event & Banner Changes
+            </GlassButton>
           </form>
 
           {/* Reset Database */}
