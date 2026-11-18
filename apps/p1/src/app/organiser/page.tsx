@@ -30,6 +30,8 @@ import {
   Copy,
   Download,
   Share2,
+  Video,
+  Info,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Booking, Event, TicketTier, Ticket, CheckInResponse } from '@firefly/shared-types';
@@ -121,9 +123,22 @@ export default function P1AdminPanelPage() {
   const [showManualInput, setShowManualInput] = useState(false);
   const [selectedScannerEvent, setSelectedScannerEvent] = useState<string>('ALL');
   const [scanningPhoto, setScanningPhoto] = useState(false);
+  const [isSecure, setIsSecure] = useState(true);
+  const [hasMediaDevices, setHasMediaDevices] = useState(true);
+  const [showFlagGuide, setShowFlagGuide] = useState(false);
+  const [copiedOrigin, setCopiedOrigin] = useState(false);
 
   const scannerRef = useRef<any>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const secure = window.isSecureContext ?? false;
+      const media = !!(navigator?.mediaDevices && navigator?.mediaDevices?.getUserMedia);
+      setIsSecure(secure);
+      setHasMediaDevices(media);
+    }
+  }, []);
 
   const loadAllData = () => {
     setBookings(p1Storage.getBookings());
@@ -501,6 +516,17 @@ export default function P1AdminPanelPage() {
   const startCameraScanner = async () => {
     setCameraError(null);
     setScanResult(null);
+
+    // Pre-flight check: Mobile browsers require Secure Context (HTTPS or localhost) for getUserMedia
+    const secure = typeof window !== 'undefined' ? window.isSecureContext : true;
+    const hasMedia = typeof navigator !== 'undefined' && !!navigator.mediaDevices && !!navigator.mediaDevices.getUserMedia;
+
+    if (!secure || !hasMedia) {
+      setCameraError('MOBILE_INSECURE_CONTEXT');
+      setIsScanning(false);
+      return;
+    }
+
     setIsScanning(true);
 
     try {
@@ -534,10 +560,18 @@ export default function P1AdminPanelPage() {
     } catch (err: any) {
       console.error('Camera initialization failed', err);
       setIsScanning(false);
-      setCameraError(
-        err?.message ||
-          'Camera access was denied or is unavailable. You can use the "Snap Photo / Upload QR" button or type the code manually.'
-      );
+      const msg = String(err?.message || err || '');
+      if (
+        msg.includes('getUserMedia') ||
+        msg.includes('NotAllowedError') ||
+        msg.includes('Permission') ||
+        msg.includes('not supported') ||
+        (typeof window !== 'undefined' && !window.isSecureContext)
+      ) {
+        setCameraError('MOBILE_INSECURE_CONTEXT');
+      } else {
+        setCameraError(msg || 'Camera hardware is unavailable.');
+      }
     }
   };
 
@@ -568,10 +602,17 @@ export default function P1AdminPanelPage() {
       const { Html5Qrcode } = await import('html5-qrcode');
       // Create off-screen scanner instance for file analysis
       const fileScanner = new Html5Qrcode('qr-camera-scratch');
-      const decodedText = await fileScanner.scanFile(file, true);
-      handleProcessScan(decodedText);
+      try {
+        const decodedText = await fileScanner.scanFile(file, false);
+        handleProcessScan(decodedText);
+      } finally {
+        try {
+          await fileScanner.clear();
+        } catch {}
+      }
     } catch (err: any) {
-      alert('Could not detect a valid QR code in this photo. Please ensure good lighting and tap again.');
+      console.warn('QR scan error on file', err);
+      alert('Could not detect a valid QR code in this photo. Please hold steady, ensure good lighting, and snap again.');
     } finally {
       setScanningPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = '';
@@ -979,6 +1020,69 @@ export default function P1AdminPanelPage() {
               </select>
             </div>
 
+            {/* Insecure Context notice badge if on HTTP LAN */}
+            {(!isSecure || !hasMediaDevices) && (
+              <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-[11px]">
+                <div className="flex items-center gap-2 text-white/70">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>Mobile Wi-Fi Mode (Native Camera Active)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowFlagGuide(!showFlagGuide)}
+                  className="text-[#FF9A45] hover:underline font-medium text-[10px]"
+                >
+                  {showFlagGuide ? 'Hide Info' : 'Live Stream Info'}
+                </button>
+              </div>
+            )}
+
+            {/* Expander for Chrome Flag Guide */}
+            {showFlagGuide && (
+              <div className="p-3.5 rounded-xl bg-black/60 border border-amber-500/30 space-y-2.5 text-xs text-white/80 animate-in fade-in duration-200">
+                <div className="flex items-start gap-2 text-amber-300 font-semibold text-xs">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Continuous Live Video on Android Chrome</span>
+                </div>
+                <p className="text-white/60 text-[11px] leading-relaxed">
+                  Mobile browsers restrict continuous camera video streaming on plain <code className="text-amber-300 font-mono">http://</code> Wi-Fi connections. The <strong>&quot;Snap Photo / Upload QR&quot;</strong> button works 100% out of the box with your phone&apos;s native camera!
+                </p>
+                <div className="p-2.5 rounded-lg bg-white/[0.04] border border-white/[0.08] space-y-1.5 text-[11px]">
+                  <p className="text-white font-medium text-[10px] uppercase tracking-wider text-white/60">
+                    To unlock continuous 12fps streaming:
+                  </p>
+                  <p className="text-white/70">
+                    1. In Android Chrome, open: <br />
+                    <span className="text-[#FF9A45] font-mono break-all text-[10px]">chrome://flags/#unsafely-treat-insecure-origin-as-secure</span>
+                  </p>
+                  <p className="text-white/70">
+                    2. Add server address:
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-1 rounded bg-black/70 border border-white/10 font-mono text-white text-[11px] select-all">
+                      {typeof window !== 'undefined' ? window.location.origin : 'http://10.93.32.147:3000'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (typeof window !== 'undefined') {
+                          navigator.clipboard.writeText(window.location.origin);
+                          setCopiedOrigin(true);
+                          setTimeout(() => setCopiedOrigin(false), 2000);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-md bg-[#FF6A1A]/20 hover:bg-[#FF6A1A]/30 border border-[#FF6A1A]/40 text-[#FF9A45] font-bold text-[10px] transition-colors"
+                    >
+                      {copiedOrigin ? '✓ Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                  <p className="text-white/70">
+                    3. Set to <strong className="text-white">Enabled</strong> and tap <strong className="text-white">Relaunch</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* CAMERA VIEWFINDER WINDOW */}
             <div className="relative rounded-2xl overflow-hidden bg-black/90 border border-white/[0.15] shadow-2xl min-h-[300px] flex flex-col items-center justify-center">
               {/* Target div for Html5Qrcode video element */}
@@ -988,9 +1092,12 @@ export default function P1AdminPanelPage() {
               />
 
               {/* Off-screen helper for snapshot file parsing */}
-              <div id="qr-camera-scratch" className="hidden" />
+              <div
+                id="qr-camera-scratch"
+                style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, pointerEvents: 'none' }}
+              />
 
-              {/* Inactive Camera State with Large Trigger CTA */}
+              {/* Inactive Camera State with Dynamic CTA */}
               {!isScanning && (
                 <div className="p-6 text-center space-y-4 w-full">
                   <div className="w-16 h-16 rounded-3xl bg-[#FF6A1A]/15 border border-[#FF6A1A]/30 flex items-center justify-center mx-auto text-[#FF9A45] shadow-[0_0_30px_rgba(255,106,26,0.25)]">
@@ -998,43 +1105,145 @@ export default function P1AdminPanelPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-white">Camera Viewfinder Ready</h3>
+                    <h3 className="text-sm font-bold text-white">
+                      {(!isSecure || !hasMediaDevices) ? 'Mobile Gate Camera Ready' : 'Camera Viewfinder Ready'}
+                    </h3>
                     <p className="text-xs text-white/50 max-w-xs mx-auto">
-                      Open your phone camera to scan attendee QR entrance tickets in real-time.
+                      {(!isSecure || !hasMediaDevices)
+                        ? 'Snap attendee QR pass with your phone camera for instant admission verification.'
+                        : 'Open your phone camera to scan attendee QR entrance tickets in real-time.'}
                     </p>
                   </div>
 
-                  {cameraError && (
+                  {/* SPECIFIC INSECURE CONTEXT ERROR CARD */}
+                  {cameraError === 'MOBILE_INSECURE_CONTEXT' && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs text-left space-y-3">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                        <div className="space-y-1">
+                          <h4 className="font-bold text-amber-300 text-xs uppercase tracking-wider">
+                            Mobile Browser Security Notice
+                          </h4>
+                          <p className="text-white/70 text-[11px] leading-relaxed">
+                            Mobile browsers (Chrome / Safari) disable continuous live video streams over unencrypted <code className="text-amber-300 font-mono">http://</code> Wi-Fi connections.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-amber-500/20 space-y-2">
+                        <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Works Instantly with Phone Camera:</span>
+                        </div>
+                        <p className="text-white/60 text-[11px]">
+                          Tap below to open your phone&apos;s native camera. It snaps the ticket QR code directly with zero permission errors!
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCameraError(null);
+                            photoInputRef.current?.click();
+                          }}
+                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] hover:opacity-90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+                        >
+                          <Camera className="w-4 h-4" />
+                          <span>📸 Snap Photo with Phone Camera</span>
+                        </button>
+                      </div>
+
+                      <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-[11px]">
+                        <button
+                          type="button"
+                          onClick={() => setShowFlagGuide(!showFlagGuide)}
+                          className="text-white/50 hover:text-white underline text-[10px]"
+                        >
+                          Enable continuous video in Chrome flags →
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCameraError(null)}
+                          className="text-white/40 hover:text-white text-[10px]"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* GENERIC ERROR CARD */}
+                  {cameraError && cameraError !== 'MOBILE_INSECURE_CONTEXT' && (
                     <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs text-left flex items-start gap-2">
                       <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                      <span>{cameraError}</span>
+                      <div className="flex-1 space-y-1">
+                        <span>{cameraError}</span>
+                        <button
+                          type="button"
+                          onClick={() => setCameraError(null)}
+                          className="block text-white/50 hover:text-white text-[10px] underline"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
                     </div>
                   )}
 
                   <div className="space-y-2 pt-1">
-                    {/* Primary Button: Live Stream Scanner */}
-                    <GlassButton
-                      variant="primary"
-                      fullWidth
-                      size="lg"
-                      onClick={startCameraScanner}
-                      className="py-3.5 shadow-[0_4px_24px_rgba(255,106,26,0.35)]"
-                    >
-                      <div className="flex items-center justify-center gap-2">
-                        <Camera className="w-4 h-4 text-white" />
-                        <span className="font-bold">Start Live Camera Scanner</span>
-                      </div>
-                    </GlassButton>
+                    {/* BUTTON LAYOUT FOR MOBILE HTTP LAN */}
+                    {(!isSecure || !hasMediaDevices) ? (
+                      <>
+                        {/* Primary Action on Mobile Wi-Fi: Native Camera Capture */}
+                        <GlassButton
+                          variant="primary"
+                          fullWidth
+                          size="lg"
+                          onClick={() => photoInputRef.current?.click()}
+                          className="py-3.5 shadow-[0_4px_24px_rgba(255,106,26,0.35)]"
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <Camera className="w-5 h-5 text-white" />
+                            <span className="font-bold">
+                              {scanningPhoto ? 'Analyzing Ticket QR...' : '📸 Snap Photo to Scan QR'}
+                            </span>
+                          </div>
+                        </GlassButton>
 
-                    {/* Secondary Button: Native Mobile Camera Photo Snap */}
-                    <button
-                      type="button"
-                      onClick={() => photoInputRef.current?.click()}
-                      className="w-full py-2.5 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/80 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
-                    >
-                      <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
-                      <span>{scanningPhoto ? 'Analyzing QR Photo...' : 'Snap Photo / Upload QR Image'}</span>
-                    </button>
+                        {/* Secondary Action: Try continuous video */}
+                        <button
+                          type="button"
+                          onClick={startCameraScanner}
+                          className="w-full py-2.5 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/70 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
+                        >
+                          <Video className="w-3.5 h-3.5 text-[#FF9A45]" />
+                          <span>Try Continuous Live Viewfinder</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {/* Primary Action on Secure Context / Localhost: Live Video */}
+                        <GlassButton
+                          variant="primary"
+                          fullWidth
+                          size="lg"
+                          onClick={startCameraScanner}
+                          className="py-3.5 shadow-[0_4px_24px_rgba(255,106,26,0.35)]"
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <Camera className="w-4 h-4 text-white" />
+                            <span className="font-bold">Start Live Camera Scanner</span>
+                          </div>
+                        </GlassButton>
+
+                        {/* Secondary Action: Snap Photo */}
+                        <button
+                          type="button"
+                          onClick={() => photoInputRef.current?.click()}
+                          className="w-full py-2.5 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/80 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
+                        >
+                          <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
+                          <span>{scanningPhoto ? 'Analyzing QR Photo...' : 'Snap Photo / Upload QR Image'}</span>
+                        </button>
+                      </>
+                    )}
 
                     <input
                       ref={photoInputRef}
@@ -1124,6 +1333,23 @@ export default function P1AdminPanelPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Direct 1-Tap Next Scan Quick Action */}
+                <div className="pt-2 border-t border-current/20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScanResult(null);
+                      if (!isScanning) {
+                        photoInputRef.current?.click();
+                      }
+                    }}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98]"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>📸 Scan Next Attendee Ticket</span>
+                  </button>
+                </div>
               </div>
             )}
 
