@@ -858,25 +858,15 @@ export default function P1AdminPanelPage() {
                         ) : (
                           <>
                             {firstTicket && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleSharePassPhoto(b, firstTicket)}
-                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/30"
-                                >
-                                  <Share2 className="w-3.5 h-3.5" />
-                                  <span>Send Pass Photo</span>
-                                </button>
-                                <a
-                                  href={buildWhatsAppTicketSendUrl(b, firstTicket)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-white/60 hover:text-white p-1.5 rounded-lg bg-white/[0.04] border border-white/[0.08]"
-                                  title="Send Text Link on WhatsApp"
-                                >
-                                  <MessageSquare className="w-3.5 h-3.5" />
-                                </a>
-                              </>
+                              <a
+                                href={buildWhatsAppTicketSendUrl(b, firstTicket)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/30"
+                              >
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                <span>Send on WhatsApp</span>
+                              </a>
                             )}
                             <Link href={`/ticket/${firstTicket?.id || ''}`}>
                               <GlassButton size="sm" variant="secondary">
@@ -1417,30 +1407,27 @@ export default function P1AdminPanelPage() {
               Pass Number: <span className="font-mono font-bold text-white">{confirmedModal.tickets[0]?.ticketNumber}</span>
             </p>
 
-            {/* DIRECT PASS PHOTO SHARING & WHATSAPP ACTIONS */}
+            {/* DIRECT PASS DISPATCH VIA WHATSAPP */}
             <div className="pt-2 space-y-2">
-              {/* PRIMARY: Share Photo to WhatsApp (Web Share Level 2 files API) */}
-              <GlassButton
-                variant="primary"
-                fullWidth
-                size="lg"
-                onClick={() =>
-                  handleSharePassPhoto(
-                    confirmedModal.booking,
-                    confirmedModal.tickets[0],
-                    confirmedModal.passCardUrls?.[0]
-                  )
-                }
-                disabled={sharingPhoto}
-                className="bg-emerald-600 hover:bg-emerald-500 py-3 shadow-[0_4px_24px_rgba(16,185,129,0.30)]"
+              {/* PRIMARY: Direct WhatsApp chat redirect with preloaded text & link */}
+              <a
+                href={buildWhatsAppTicketSendUrl(confirmedModal.booking, confirmedModal.tickets[0])}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
               >
-                <div className="flex items-center justify-center gap-2">
-                  <Share2 className="w-4 h-4 text-white" />
-                  <span className="font-bold">
-                    {sharingPhoto ? 'Preparing Pass Photo...' : 'Send Pass Photo to WhatsApp'}
-                  </span>
-                </div>
-              </GlassButton>
+                <GlassButton
+                  variant="primary"
+                  fullWidth
+                  size="lg"
+                  className="bg-emerald-600 hover:bg-emerald-500 py-3.5 shadow-[0_4px_24px_rgba(16,185,129,0.30)] text-white"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-white" />
+                    <span className="font-bold">Send Ticket on WhatsApp</span>
+                  </div>
+                </GlassButton>
+              </a>
 
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {/* Copy Image to Clipboard */}
@@ -1467,16 +1454,6 @@ export default function P1AdminPanelPage() {
                   <span>Save Photo</span>
                 </a>
               </div>
-
-              {/* Standard text link fallback */}
-              <a
-                href={buildWhatsAppTicketSendUrl(confirmedModal.booking, confirmedModal.tickets[0])}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-white/50 hover:text-white pt-1"
-              >
-                Or open WhatsApp with text link only
-              </a>
 
               <GlassButton variant="secondary" fullWidth size="sm" onClick={() => setConfirmedModal(null)}>
                 Close

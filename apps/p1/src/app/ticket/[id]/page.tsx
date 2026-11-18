@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ArrowLeft,
   Download,
+  MessageSquare,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
 import { Ticket, Event, Booking } from '@firefly/shared-types';
@@ -70,39 +71,23 @@ export default function P1TicketPassPage() {
     minute: '2-digit',
   });
 
-  const waShareUrl = buildWhatsAppLink(
-    booking?.customer.phone || '',
-    buildTicketShareMessage(event.title, typeof window !== 'undefined' ? window.location.href : '', ticket.attendeeName)
-  );
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+  const ticketUrl = `${origin}/ticket/${ticket.id}`;
+  const fullPreloadedWhatsAppText =
+    `Hello ${ticket.attendeeName}!\n\n` +
+    `Your digital ticket pass for "${event.title}" is confirmed!\n\n` +
+    `• Ticket No: ${ticket.ticketNumber}\n` +
+    `• Tier: ${ticket.tierName}\n` +
+    `• Attendee: ${ticket.attendeeName}\n` +
+    `• Date: ${startDate} • ${startTime}\n` +
+    `• Venue: ${event.venue.name}, ${event.venue.city}\n\n` +
+    `Access your official QR entrance pass here:\n${ticketUrl}\n\n` +
+    `Please have this QR code ready for gate scanning at the venue.`;
 
-  const handleSharePhoto = async () => {
-    if (!ticket || !event) return;
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const cardUrl = await generateTicketCardDataUrl({
-      eventTitle: event.title,
-      attendeeName: ticket.attendeeName,
-      tierName: ticket.tierName,
-      ticketNumber: ticket.ticketNumber,
-      venueName: event.venue.name,
-      dateStr: startDate,
-      qrPayload: ticket.qrPayload,
-    });
-
-    const caption =
-      `*MY FIREFLY TICKET PASS: ${event.title}*\n\n` +
-      `👤 Attendee: ${ticket.attendeeName}\n` +
-      `🎟️ Tier: ${ticket.tierName}\n` +
-      `🔢 Pass No: ${ticket.ticketNumber}\n` +
-      `📍 Venue: ${event.venue.name}\n\n` +
-      `Online Pass: ${origin}/ticket/${ticket.id}`;
-
-    await shareTicketImageDirectly({
-      imageDataUrl: cardUrl,
-      ticketNumber: ticket.ticketNumber,
-      captionText: caption,
-      targetPhone: booking?.customer.phone,
-    });
-  };
+  const targetPhone = booking?.customer.phone || '';
+  const waDirectUrl = targetPhone
+    ? buildWhatsAppLink(targetPhone, fullPreloadedWhatsAppText)
+    : `https://api.whatsapp.com/send?text=${encodeURIComponent(fullPreloadedWhatsAppText)}`;
 
   const handleDownloadPhoto = async () => {
     if (!ticket || !event) return;
@@ -203,10 +188,22 @@ export default function P1TicketPassPage() {
 
       {/* Buttons */}
       <div className="space-y-2 print:hidden">
-        <GlassButton variant="primary" fullWidth size="lg" onClick={handleSharePhoto} className="bg-emerald-600 hover:bg-emerald-500 py-3">
-          <Share2 className="w-4 h-4 mr-2 text-white" />
-          <span className="font-bold">Share Pass Photo to WhatsApp</span>
-        </GlassButton>
+        <a
+          href={waDirectUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block w-full"
+        >
+          <GlassButton
+            variant="primary"
+            fullWidth
+            size="lg"
+            className="bg-emerald-600 hover:bg-emerald-500 py-3.5 shadow-[0_4px_24px_rgba(16,185,129,0.35)] text-white"
+          >
+            <MessageSquare className="w-4 h-4 mr-2 text-white" />
+            <span className="font-bold">Send Ticket on WhatsApp</span>
+          </GlassButton>
+        </a>
 
         <div className="grid grid-cols-2 gap-2">
           <GlassButton variant="secondary" fullWidth size="md" onClick={handleDownloadPhoto}>
