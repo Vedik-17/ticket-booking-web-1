@@ -177,15 +177,21 @@ class P1MultiEventStore {
     if (typeof window === 'undefined') {
       return DEFAULT_STATE;
     }
-    if (this.memoryCache) {
+    if (this.memoryCache && Array.isArray(this.memoryCache.events) && this.memoryCache.events.length > 0) {
       return this.memoryCache;
     }
 
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        this.memoryCache = JSON.parse(raw);
-        return this.memoryCache!;
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.events) && parsed.events.length > 0) {
+          if (!Array.isArray(parsed.tiers) || parsed.tiers.length === 0) {
+            parsed.tiers = DEFAULT_TIERS;
+          }
+          this.memoryCache = parsed;
+          return this.memoryCache!;
+        }
       }
     } catch (e) {
       console.warn('Could not read from localStorage, using defaults', e);
@@ -209,11 +215,15 @@ class P1MultiEventStore {
 
   // --- EVENTS ---
   public getEvents(): Event[] {
-    return this.loadState().events;
+    const state = this.loadState();
+    if (!Array.isArray(state.events) || state.events.length === 0) {
+      return DEFAULT_EVENTS;
+    }
+    return state.events;
   }
 
   public getEvent(idOrSlug: string): Event | undefined {
-    return this.loadState().events.find((e) => e.id === idOrSlug || e.slug === idOrSlug);
+    return this.getEvents().find((e) => e.id === idOrSlug || e.slug === idOrSlug);
   }
 
   public createEvent(eventData: Omit<Event, 'id' | 'createdAt' | 'updatedAt'>): Event {

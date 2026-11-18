@@ -344,3 +344,4 @@ export default function P1EventDetailPage() {
     </div>
   );
 }
+

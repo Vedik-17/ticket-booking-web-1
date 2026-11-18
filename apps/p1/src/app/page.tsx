@@ -18,8 +18,8 @@ import { formatINR } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
 
 export default function P1EventsDashboardPage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [tiers, setTiers] = useState<TicketTier[]>([]);
+  const [events, setEvents] = useState<Event[]>(() => p1Storage.getEvents());
+  const [tiers, setTiers] = useState<TicketTier[]>(() => p1Storage.getTiers());
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
