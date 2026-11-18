@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Camera,
+  CameraOff,
   Layers,
   Settings,
   Lock,
@@ -24,6 +25,8 @@ import {
   Trash2,
   Pencil,
   X,
+  RefreshCw,
+  UserCheck,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Booking, Event, TicketTier, Ticket, CheckInResponse } from '@firefly/shared-types';
@@ -40,6 +43,7 @@ export default function P1AdminPanelPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [tiers, setTiers] = useState<TicketTier[]>([]);
+  const [allTickets, setAllTickets] = useState<Ticket[]>([]);
 
   // Recently confirmed ticket modal/drawer
   const [confirmedModal, setConfirmedModal] = useState<{
@@ -100,14 +104,29 @@ export default function P1AdminPanelPage() {
   });
 
   // Scanner State
+  const [isScanning, setIsScanning] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [scanResult, setScanResult] = useState<CheckInResponse | null>(null);
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [selectedScannerEvent, setSelectedScannerEvent] = useState<string>('ALL');
+  const [scanningPhoto, setScanningPhoto] = useState(false);
+
+  const scannerRef = useRef<any>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadAllData = () => {
     setBookings(p1Storage.getBookings());
     const evts = p1Storage.getEvents();
     setEvents(evts);
     setTiers(p1Storage.getTiers());
+    // Load all tickets from bookings/store
+    const allTkts: Ticket[] = [];
+    const bList = p1Storage.getBookings();
+    bList.forEach((b) => {
+      allTkts.push(...p1Storage.getTicketsByBookingId(b.id));
+    });
+    setAllTickets(allTkts);
     return evts;
   };
 
@@ -127,6 +146,16 @@ export default function P1AdminPanelPage() {
       }
     }
   }, [isAuthenticated]);
+
+  // Clean up camera scanner when leaving scanner tab or unmounting
+  useEffect(() => {
+    if (activeTab !== 'scanner') {
+      stopCameraScanner();
+    }
+    return () => {
+      stopCameraScanner();
+    };
+  }, [activeTab]);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,7 +234,6 @@ export default function P1AdminPanelPage() {
       featured: true,
     });
 
-    // Create tiers
     if (newEvent.tier1Name && newEvent.tier1Price) {
       p1Storage.createTier({
         eventId: created.id,
@@ -375,14 +403,123 @@ export default function P1AdminPanelPage() {
     alert(`"${editForm.title}" updated successfully!`);
   };
 
-  // Gate Scanner
-  const handleScanSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!manualCode.trim()) return;
+  // --- CAMERA QR SCANNER ENGINE ---
+  const startCameraScanner = async () => {
+    setCameraError(null);
+    setScanResult(null);
+    setIsScanning(true);
 
-    const res = p1Storage.verifyTicketScan(manualCode.trim());
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      // Clear any prior instance
+      if (scannerRef.current) {
+        try {
+          await scannerRef.current.stop();
+        } catch {}
+      }
+
+      const qrScanner = new Html5Qrcode('qr-camera-feed');
+      scannerRef.current = qrScanner;
+
+      const config = {
+        fps: 12,
+        qrbox: { width: 240, height: 240 },
+        aspectRatio: 1.0,
+      };
+
+      await qrScanner.start(
+        { facingMode: 'environment' }, // Back camera on mobile
+        config,
+        (decodedText) => {
+          handleProcessScan(decodedText);
+        },
+        () => {
+          // Frame parse error: silent while searching
+        }
+      );
+    } catch (err: any) {
+      console.error('Camera initialization failed', err);
+      setIsScanning(false);
+      setCameraError(
+        err?.message ||
+          'Camera access was denied or is unavailable. You can use the "Snap Photo / Upload QR" button or type the code manually.'
+      );
+    }
+  };
+
+  const stopCameraScanner = async () => {
+    if (scannerRef.current) {
+      try {
+        if (scannerRef.current.isScanning) {
+          await scannerRef.current.stop();
+        }
+        scannerRef.current.clear();
+      } catch (err) {
+        console.warn('Error clearing scanner', err);
+      } finally {
+        scannerRef.current = null;
+        setIsScanning(false);
+      }
+    }
+  };
+
+  // Instant Snapshot Scanner via Native Mobile Camera (<input capture="environment" />)
+  const handlePhotoScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setScanningPhoto(true);
+    setCameraError(null);
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      // Create off-screen scanner instance for file analysis
+      const fileScanner = new Html5Qrcode('qr-camera-scratch');
+      const decodedText = await fileScanner.scanFile(file, true);
+      handleProcessScan(decodedText);
+    } catch (err: any) {
+      alert('Could not detect a valid QR code in this photo. Please ensure good lighting and tap again.');
+    } finally {
+      setScanningPhoto(false);
+      if (photoInputRef.current) photoInputRef.current.value = '';
+    }
+  };
+
+  // Process Decoded QR Code (Live Camera, Photo, or Manual)
+  const handleProcessScan = (code: string) => {
+    const cleanCode = code.trim();
+    if (!cleanCode) return;
+
+    // Pleasant audio feedback & device vibration
+    try {
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([100, 50, 100]);
+      }
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.25);
+      }
+    } catch {}
+
+    const targetEventId = selectedScannerEvent === 'ALL' ? undefined : selectedScannerEvent;
+    const res = p1Storage.verifyTicketScan(cleanCode, targetEventId);
     setScanResult(res);
     loadAllData();
+  };
+
+  const handleManualScanSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualCode.trim()) return;
+    handleProcessScan(manualCode);
+    setManualCode('');
   };
 
   // Helper to build WhatsApp message to send ticket to customer
@@ -448,6 +585,9 @@ export default function P1AdminPanelPage() {
   const confirmedBookings = bookings.filter((b) => b.status === 'CONFIRMED');
   const totalGrossPence = confirmedBookings.reduce((sum, b) => sum + b.totalAmountInPence, 0);
 
+  // Gate Scanner Stats
+  const checkedInTicketsCount = allTickets.filter((t) => t.status === 'CHECKED_IN').length;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Top Banner */}
@@ -504,8 +644,10 @@ export default function P1AdminPanelPage() {
           <p className="text-base font-bold text-amber-400">{pendingBookings.length}</p>
         </GlassCard>
         <GlassCard padding="sm" className="space-y-0.5">
-          <span className="text-[10px] text-white/40 uppercase">Active Events</span>
-          <p className="text-base font-bold text-white">{events.length}</p>
+          <span className="text-[10px] text-white/40 uppercase">Gate Check-ins</span>
+          <p className="text-base font-bold text-emerald-400">
+            {checkedInTicketsCount} / {allTickets.length}
+          </p>
         </GlassCard>
       </div>
 
@@ -702,57 +844,211 @@ export default function P1AdminPanelPage() {
         </div>
       )}
 
-      {/* TAB 3: GATE SCANNER */}
+      {/* TAB 3: LIVE CAMERA GATE SCANNER */}
       {activeTab === 'scanner' && (
         <div className="max-w-md mx-auto space-y-4">
           <GlassCard className="space-y-4">
+            {/* Header & Event selector */}
             <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <Camera className="w-4 h-4 text-[#FF9A45]" />
-                <span>Gate Entrance QR Scanner</span>
-              </h2>
-              <GlassBadge variant="accent">Central Check-in</GlassBadge>
+                <h2 className="text-sm font-bold text-white">Live Camera Gate Scanner</h2>
+              </div>
+              <GlassBadge variant="accent">
+                {checkedInTicketsCount} Admitted
+              </GlassBadge>
             </div>
 
-            <form onSubmit={handleScanSubmit} className="space-y-3">
-              <GlassInput
-                label="Scan Ticket QR / Paste Code"
-                placeholder="Scan or paste FF1.<ticketId>..."
-                value={manualCode}
-                onChange={(e) => setManualCode(e.target.value)}
-                required
-              />
-              <GlassButton type="submit" variant="primary" fullWidth size="md">
-                Verify & Admit Attendee
-              </GlassButton>
-            </form>
+            {/* Event Filter */}
+            <div className="space-y-1 text-xs">
+              <label className="text-[10px] text-white/50 uppercase font-semibold">Admissions Scope</label>
+              <select
+                value={selectedScannerEvent}
+                onChange={(e) => setSelectedScannerEvent(e.target.value)}
+                className="w-full py-2 px-3 rounded-xl bg-white/[0.05] border border-white/[0.10] text-xs text-white focus:outline-none focus:border-[#FF6A1A]"
+              >
+                <option value="ALL" className="bg-[#181818] text-white">All Events (Auto-match)</option>
+                {events.map((e) => (
+                  <option key={e.id} value={e.id} className="bg-[#181818] text-white">
+                    {e.title}
+                  </option>
+                ))}
+              </select>
+            </div>
 
+            {/* CAMERA VIEWFINDER WINDOW */}
+            <div className="relative rounded-2xl overflow-hidden bg-black/90 border border-white/[0.15] shadow-2xl min-h-[300px] flex flex-col items-center justify-center">
+              {/* Target div for Html5Qrcode video element */}
+              <div
+                id="qr-camera-feed"
+                className={`w-full ${isScanning ? 'block' : 'hidden'}`}
+              />
+
+              {/* Off-screen helper for snapshot file parsing */}
+              <div id="qr-camera-scratch" className="hidden" />
+
+              {/* Inactive Camera State with Large Trigger CTA */}
+              {!isScanning && (
+                <div className="p-6 text-center space-y-4 w-full">
+                  <div className="w-16 h-16 rounded-3xl bg-[#FF6A1A]/15 border border-[#FF6A1A]/30 flex items-center justify-center mx-auto text-[#FF9A45] shadow-[0_0_30px_rgba(255,106,26,0.25)]">
+                    <Camera className="w-8 h-8 animate-pulse" />
+                  </div>
+
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-white">Camera Viewfinder Ready</h3>
+                    <p className="text-xs text-white/50 max-w-xs mx-auto">
+                      Open your phone camera to scan attendee QR entrance tickets in real-time.
+                    </p>
+                  </div>
+
+                  {cameraError && (
+                    <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs text-left flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                      <span>{cameraError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2 pt-1">
+                    {/* Primary Button: Live Stream Scanner */}
+                    <GlassButton
+                      variant="primary"
+                      fullWidth
+                      size="lg"
+                      onClick={startCameraScanner}
+                      className="py-3.5 shadow-[0_4px_24px_rgba(255,106,26,0.35)]"
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <Camera className="w-4 h-4 text-white" />
+                        <span className="font-bold">Start Live Camera Scanner</span>
+                      </div>
+                    </GlassButton>
+
+                    {/* Secondary Button: Native Mobile Camera Photo Snap */}
+                    <button
+                      type="button"
+                      onClick={() => photoInputRef.current?.click()}
+                      className="w-full py-2.5 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/80 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
+                      <span>{scanningPhoto ? 'Analyzing QR Photo...' : 'Snap Photo / Upload QR Image'}</span>
+                    </button>
+
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handlePhotoScan}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Active Camera Overlay Controls */}
+              {isScanning && (
+                <div className="w-full p-3 bg-black/60 backdrop-blur-sm border-t border-white/[0.10] flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                    <span>Live Video Scanning...</span>
+                  </div>
+
+                  <button
+                    onClick={stopCameraScanner}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-medium text-xs flex items-center gap-1.5 transition-colors"
+                  >
+                    <CameraOff className="w-3.5 h-3.5" />
+                    <span>Stop Camera</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* SCAN RESULT BANNER (WITH AUDIO/VIBRATION CONFIRMATION) */}
             {scanResult && (
               <div
-                className={`p-3.5 rounded-xl border text-xs space-y-2 ${
+                className={`p-4 rounded-2xl border text-xs space-y-3 transition-all ${
                   scanResult.status === 'SUCCESS'
-                    ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200'
-                    : 'bg-rose-500/15 border-rose-500/30 text-rose-200'
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 shadow-[0_0_30px_rgba(16,185,129,0.20)]'
+                    : scanResult.status === 'ALREADY_CHECKED_IN'
+                    ? 'bg-amber-500/15 border-amber-500/40 text-amber-200 shadow-[0_0_30px_rgba(245,158,11,0.20)]'
+                    : 'bg-rose-500/15 border-rose-500/40 text-rose-200 shadow-[0_0_30px_rgba(244,63,94,0.20)]'
                 }`}
               >
-                <div className="flex items-center gap-2 font-bold">
-                  {scanResult.status === 'SUCCESS' ? (
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  ) : (
-                    <AlertTriangle className="w-4 h-4 text-rose-400" />
-                  )}
-                  <span>{scanResult.message}</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    {scanResult.status === 'SUCCESS' ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+                    )}
+                    <span>
+                      {scanResult.status === 'SUCCESS'
+                        ? 'ENTRY APPROVED / ADMITTED'
+                        : scanResult.status === 'ALREADY_CHECKED_IN'
+                        ? 'ALREADY CHECKED IN (DUPLICATE)'
+                        : 'CHECK-IN REJECTED'}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => setScanResult(null)}
+                    className="text-white/60 hover:text-white text-xs p-1"
+                  >
+                    ✕
+                  </button>
                 </div>
 
+                <p className="text-xs text-white/80">{scanResult.message}</p>
+
                 {scanResult.ticket && (
-                  <div className="pt-2 border-t border-current/20 space-y-0.5">
-                    <div>Attendee: <span className="font-semibold">{scanResult.ticket.attendeeName}</span></div>
-                    <div>Tier: <span className="font-semibold">{scanResult.ticket.tierName}</span></div>
-                    <div>Pass Number: <span className="font-mono">{scanResult.ticket.ticketNumber}</span></div>
+                  <div className="pt-2.5 border-t border-current/20 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] text-white/50 block">Attendee</span>
+                      <span className="font-bold text-white text-sm">
+                        {scanResult.ticket.attendeeName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-white/50 block">Tier</span>
+                      <span className="font-semibold text-[#FF9A45]">
+                        {scanResult.ticket.tierName}
+                      </span>
+                    </div>
+                    <div className="col-span-2 flex items-center justify-between pt-1 font-mono text-[11px] text-white/60">
+                      <span>Pass: {scanResult.ticket.ticketNumber}</span>
+                      <span>{new Date(scanResult.timestamp).toLocaleTimeString()}</span>
+                    </div>
                   </div>
                 )}
               </div>
             )}
+
+            {/* MANUAL CODE ENTRY / PASTE FALLBACK (EXPANDABLE) */}
+            <div className="pt-2 border-t border-white/[0.08]">
+              <button
+                type="button"
+                onClick={() => setShowManualInput(!showManualInput)}
+                className="w-full text-center text-xs text-white/50 hover:text-white py-1 flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5 text-[#FF9A45]" />
+                <span>{showManualInput ? 'Hide Manual Code Input' : 'Or Type Ticket Number / Paste QR Code'}</span>
+              </button>
+
+              {showManualInput && (
+                <form onSubmit={handleManualScanSubmit} className="pt-3 space-y-2">
+                  <GlassInput
+                    placeholder="e.g. TKT-9J8A-42 or FF1.<ticketId>..."
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    required
+                  />
+                  <GlassButton type="submit" variant="secondary" fullWidth size="sm">
+                    Verify & Admit Manually
+                  </GlassButton>
+                </form>
+              )}
+            </div>
           </GlassCard>
         </div>
       )}

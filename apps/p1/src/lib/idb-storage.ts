@@ -531,22 +531,31 @@ class P1MultiEventStore {
     return this.loadState().tickets.filter((t) => t.bookingId === bookingId);
   }
 
-  public verifyTicketScan(qrPayload: string, eventId?: string): CheckInResponse {
+  public verifyTicketScan(rawScanInput: string, eventId?: string): CheckInResponse {
     const state = this.loadState();
     let targetTicket: Ticket | undefined;
+    const cleanInput = rawScanInput.trim();
 
     for (const t of state.tickets) {
-      if (t.qrPayload === qrPayload || qrPayload.includes(t.id)) {
+      if (
+        t.qrPayload === cleanInput ||
+        (t.id && cleanInput.includes(t.id)) ||
+        (t.ticketNumber && cleanInput.toLowerCase() === t.ticketNumber.toLowerCase())
+      ) {
         targetTicket = t;
         break;
       }
     }
 
+    const payloadToProcess = (targetTicket && (!cleanInput.startsWith('FF1.') || cleanInput.includes('/')))
+      ? targetTicket.qrPayload
+      : cleanInput;
+
     const { response, updatedTicket } = ScannerEngine.processScan({
       request: {
-        qrPayload,
+        qrPayload: payloadToProcess,
         eventId: eventId || targetTicket?.eventId || '',
-        scannerUserId: 'ADMIN-CONSOLE',
+        scannerUserId: 'GATE-CAMERA-CONSOLE',
       },
       ticket: targetTicket,
     });
