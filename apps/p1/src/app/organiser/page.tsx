@@ -42,6 +42,12 @@ import {
   generateTicketCardDataUrl,
   shareTicketImageDirectly,
 } from '@/lib/image';
+import {
+  parseFlexibleDateTime,
+  formatForHumanInput,
+  formatPreviewDateTime,
+} from '@/lib/date';
+import { FlexibleDateTimeInput } from '@/components/FlexibleDateTimeInput';
 
 export default function P1AdminPanelPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -388,20 +394,25 @@ export default function P1AdminPanelPage() {
 
     const maxTix = Math.max(1, Number(newEvent.maxTicketsPerBooking) || 6);
 
+    const parsedStart = parseFlexibleDateTime(newEvent.startsAt);
+    if (newEvent.startsAt.trim() && !parsedStart) {
+      alert('Could not understand Start Date & Time. Please use a format like "21/11/2026, 07:00 PM" or pick a date.');
+      return;
+    }
+
+    const parsedEnd = parseFlexibleDateTime(newEvent.endsAt);
+    if (newEvent.endsAt.trim() && !parsedEnd) {
+      alert('Could not understand End Date & Time. Please use a format like "21/11/2026, 10:00 PM" or pick a date.');
+      return;
+    }
+
     const now = new Date();
     const defaultStart = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const defaultEnd = new Date(defaultStart.getTime() + 4 * 60 * 60 * 1000);
+    const finalStart = parsedStart || defaultStart;
+    const finalEnd = parsedEnd || new Date(finalStart.getTime() + 4 * 60 * 60 * 1000);
 
-    let startsAtIso = defaultStart.toISOString();
-    let endsAtIso = defaultEnd.toISOString();
-    if (newEvent.startsAt) {
-      const parsed = new Date(newEvent.startsAt);
-      if (!isNaN(parsed.getTime())) startsAtIso = parsed.toISOString();
-    }
-    if (newEvent.endsAt) {
-      const parsed = new Date(newEvent.endsAt);
-      if (!isNaN(parsed.getTime())) endsAtIso = parsed.toISOString();
-    }
+    const startsAtIso = finalStart.toISOString();
+    const endsAtIso = finalEnd.toISOString();
 
     const created = p1Storage.createEvent({
       organiserId: 'org-1',
@@ -503,16 +514,6 @@ export default function P1AdminPanelPage() {
     setEditingEvent(evt);
     setEditBannerPreview(evt.posterUrl);
 
-    const formatForInput = (isoStr: string) => {
-      try {
-        const d = new Date(isoStr);
-        if (isNaN(d.getTime())) return '';
-        return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      } catch {
-        return '';
-      }
-    };
-
     setEditForm({
       title: evt.title,
       tagline: evt.tagline || '',
@@ -523,8 +524,8 @@ export default function P1AdminPanelPage() {
       address: evt.venue.address || '',
       city: evt.venue.city,
       googleMapsUrl: evt.venue.googleMapsUrl || '',
-      startsAt: formatForInput(evt.schedule.startsAt),
-      endsAt: formatForInput(evt.schedule.endsAt),
+      startsAt: formatForHumanInput(evt.schedule.startsAt),
+      endsAt: formatForHumanInput(evt.schedule.endsAt),
       upiId: evt.upiId || '',
       upiPayeeName: evt.upiPayeeName || '',
       whatsappPhone: evt.whatsappPhone || '',
@@ -617,6 +618,21 @@ export default function P1AdminPanelPage() {
 
     const maxTix = Math.max(1, Number(editForm.maxTicketsPerBooking) || 6);
 
+    const parsedStart = parseFlexibleDateTime(editForm.startsAt);
+    if (editForm.startsAt.trim() && !parsedStart) {
+      alert('Could not understand Start Date & Time. Please use a format like "21/11/2026, 07:00 PM"');
+      return;
+    }
+
+    const parsedEnd = parseFlexibleDateTime(editForm.endsAt);
+    if (editForm.endsAt.trim() && !parsedEnd) {
+      alert('Could not understand End Date & Time. Please use a format like "21/11/2026, 10:00 PM"');
+      return;
+    }
+
+    const startsAtIso = parsedStart ? parsedStart.toISOString() : editingEvent.schedule.startsAt;
+    const endsAtIso = parsedEnd ? parsedEnd.toISOString() : editingEvent.schedule.endsAt;
+
     p1Storage.updateEvent(editingEvent.id, {
       title: editForm.title,
       tagline: editForm.tagline,
@@ -636,12 +652,8 @@ export default function P1AdminPanelPage() {
       },
       schedule: {
         ...editingEvent.schedule,
-        startsAt: editForm.startsAt && !isNaN(new Date(editForm.startsAt).getTime())
-          ? new Date(editForm.startsAt).toISOString()
-          : editingEvent.schedule.startsAt,
-        endsAt: editForm.endsAt && !isNaN(new Date(editForm.endsAt).getTime())
-          ? new Date(editForm.endsAt).toISOString()
-          : editingEvent.schedule.endsAt,
+        startsAt: startsAtIso,
+        endsAt: endsAtIso,
       },
     });
 
@@ -1729,7 +1741,7 @@ export default function P1AdminPanelPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEditedEvent} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveEditedEvent} noValidate className="space-y-4 text-xs">
               {/* Photo Upload & Preview with Drag & Drop */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -1840,19 +1852,23 @@ export default function P1AdminPanelPage() {
               </div>
 
               {/* Timings */}
-              <div className="grid grid-cols-2 gap-2">
-                <GlassInput
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FlexibleDateTimeInput
                   label="Start Date & Time"
-                  type="datetime-local"
                   value={editForm.startsAt}
-                  onChange={(e) => setEditForm({ ...editForm, startsAt: e.target.value })}
+                  onChange={(val) => setEditForm({ ...editForm, startsAt: val })}
+                  placeholder="e.g. 21/11/2026, 07:00 PM"
+                  showPresets={true}
+                  presetType="start"
                   required
                 />
-                <GlassInput
+                <FlexibleDateTimeInput
                   label="End Date & Time"
-                  type="datetime-local"
                   value={editForm.endsAt}
-                  onChange={(e) => setEditForm({ ...editForm, endsAt: e.target.value })}
+                  onChange={(val) => setEditForm({ ...editForm, endsAt: val })}
+                  placeholder="e.g. 21/11/2026, 10:00 PM"
+                  showPresets={true}
+                  presetType="end"
                   required
                 />
               </div>
@@ -2046,7 +2062,7 @@ export default function P1AdminPanelPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="space-y-4 text-xs">
+            <form onSubmit={handleCreateEvent} noValidate className="space-y-4 text-xs">
               {/* Photo Upload with Drag & Drop */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
@@ -2136,19 +2152,23 @@ export default function P1AdminPanelPage() {
               />
 
               {/* Timings */}
-              <div className="grid grid-cols-2 gap-2">
-                <GlassInput
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <FlexibleDateTimeInput
                   label="Start Date & Time"
-                  type="datetime-local"
                   value={newEvent.startsAt}
-                  onChange={(e) => setNewEvent({ ...newEvent, startsAt: e.target.value })}
+                  onChange={(val) => setNewEvent({ ...newEvent, startsAt: val })}
+                  placeholder="e.g. 21/11/2026, 07:00 PM"
+                  showPresets={true}
+                  presetType="start"
                   required
                 />
-                <GlassInput
+                <FlexibleDateTimeInput
                   label="End Date & Time"
-                  type="datetime-local"
                   value={newEvent.endsAt}
-                  onChange={(e) => setNewEvent({ ...newEvent, endsAt: e.target.value })}
+                  onChange={(val) => setNewEvent({ ...newEvent, endsAt: val })}
+                  placeholder="e.g. 21/11/2026, 10:00 PM"
+                  showPresets={true}
+                  presetType="end"
                   required
                 />
               </div>

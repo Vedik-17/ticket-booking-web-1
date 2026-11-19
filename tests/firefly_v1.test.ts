@@ -16,6 +16,8 @@ import {
   formatINR,
   paiseToRupees,
   rupeesToPaise,
+  parseFlexibleDateTime,
+  formatForHumanInput,
 } from '../packages/core/src/index';
 import { Event, TicketTier, Booking, Ticket } from '../packages/shared-types/src/index';
 
@@ -59,6 +61,24 @@ test('1. Core Utilities & Cryptography', async (t) => {
     assert.equal(parsed.ticketId, ticketId);
     assert.equal(parsed.eventId, eventId);
     assert.equal(parsed.token, token);
+  });
+
+  await t.test('Flexible date-time parser supports Indian, British, and human typed formats', () => {
+    // Exact format from user screenshot
+    const d1 = parseFlexibleDateTime('21/11/2026, 07:00 PM');
+    assert.ok(d1);
+    assert.equal(d1.getFullYear(), 2026);
+    assert.equal(d1.getMonth(), 10); // November (0-indexed)
+    assert.equal(d1.getDate(), 21);
+    assert.equal(d1.getHours(), 19);
+    assert.equal(d1.getMinutes(), 0);
+
+    const d2 = parseFlexibleDateTime('21/11/2026, 10:00 PM');
+    assert.ok(d2);
+    assert.equal(d2.getHours(), 22);
+
+    const formatted = formatForHumanInput(d1);
+    assert.equal(formatted, '21/11/2026, 07:00 PM');
   });
 });
 
@@ -316,3 +336,4 @@ test('5. Payment Engine & Gateway Signature Verification', async (t) => {
     assert.equal(result.status, 'FAILED');
   });
 });
+
