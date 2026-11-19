@@ -81,6 +81,7 @@ export default function P1AdminPanelPage() {
     endsAt: '2026-12-21T02:00',
     upiId: '',
     upiPayeeName: '',
+    maxTicketsPerBooking: '6',
     tier1Name: 'General Admission',
     tier1Price: '1999',
     tier1Capacity: '500',
@@ -111,6 +112,7 @@ export default function P1AdminPanelPage() {
     endsAt: '',
     upiId: '',
     upiPayeeName: '',
+    maxTicketsPerBooking: '6',
     tiers: [] as Array<{
       id?: string;
       name: string;
@@ -319,6 +321,8 @@ export default function P1AdminPanelPage() {
       return;
     }
 
+    const maxTix = Math.max(1, Number(newEvent.maxTicketsPerBooking) || 6);
+
     const created = p1Storage.createEvent({
       organiserId: 'org-1',
       title: newEvent.title,
@@ -331,6 +335,7 @@ export default function P1AdminPanelPage() {
       galleryUrls: [],
       upiId: newEvent.upiId.trim() || undefined,
       upiPayeeName: newEvent.upiPayeeName.trim() || undefined,
+      maxTicketsPerBooking: maxTix,
       venue: {
         name: newEvent.venueName,
         address: newEvent.address,
@@ -358,7 +363,7 @@ export default function P1AdminPanelPage() {
         currency: 'INR',
         capacity: Number(newEvent.tier1Capacity) || 500,
         minPerBooking: 1,
-        maxPerBooking: 6,
+        maxPerBooking: maxTix,
         salesStartAt: new Date().toISOString(),
         salesEndAt: new Date(newEvent.endsAt).toISOString(),
         status: 'ACTIVE',
@@ -374,7 +379,7 @@ export default function P1AdminPanelPage() {
         currency: 'INR',
         capacity: Number(newEvent.tier2Capacity) || 100,
         minPerBooking: 1,
-        maxPerBooking: 4,
+        maxPerBooking: maxTix,
         salesStartAt: new Date().toISOString(),
         salesEndAt: new Date(newEvent.endsAt).toISOString(),
         status: 'ACTIVE',
@@ -417,6 +422,7 @@ export default function P1AdminPanelPage() {
       endsAt: formatForInput(evt.schedule.endsAt),
       upiId: evt.upiId || '',
       upiPayeeName: evt.upiPayeeName || '',
+      maxTicketsPerBooking: evt.maxTicketsPerBooking ? evt.maxTicketsPerBooking.toString() : '6',
       tiers: eventTiers.map((t) => ({
         id: t.id,
         name: t.name,
@@ -483,6 +489,8 @@ export default function P1AdminPanelPage() {
       return;
     }
 
+    const maxTix = Math.max(1, Number(editForm.maxTicketsPerBooking) || 6);
+
     p1Storage.updateEvent(editingEvent.id, {
       title: editForm.title,
       tagline: editForm.tagline,
@@ -491,6 +499,7 @@ export default function P1AdminPanelPage() {
       posterUrl: editForm.posterUrl || editingEvent.posterUrl,
       upiId: editForm.upiId.trim() || undefined,
       upiPayeeName: editForm.upiPayeeName.trim() || undefined,
+      maxTicketsPerBooking: maxTix,
       venue: {
         ...editingEvent.venue,
         name: editForm.venueName,
@@ -948,11 +957,14 @@ export default function P1AdminPanelPage() {
                         ))}
                       </div>
 
-                      {/* Event UPI destination badge */}
-                      <div className="pt-0.5">
+                      {/* Event badges: UPI & Max Booking limit */}
+                      <div className="pt-0.5 flex flex-wrap gap-1.5">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
                           <QrCode className="w-2.5 h-2.5 text-emerald-400" />
                           <span>UPI: {evt.upiId || 'System Default'}</span>
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FF6A1A]/10 border border-[#FF6A1A]/20 text-[10px] text-[#FF9A45] font-medium">
+                          <span>Max {evt.maxTicketsPerBooking || 6} tkts/booking</span>
                         </span>
                       </div>
                     </div>
@@ -1685,6 +1697,19 @@ export default function P1AdminPanelPage() {
                 helperText="Redirects attendees directly to Google Maps navigation"
               />
 
+              {/* Max Tickets per Booking / Transaction */}
+              <GlassInput
+                label="Max Tickets Per Transaction / Booking"
+                type="number"
+                min="1"
+                max="50"
+                placeholder="e.g. 6"
+                value={editForm.maxTicketsPerBooking}
+                onChange={(e) => setEditForm({ ...editForm, maxTicketsPerBooking: e.target.value })}
+                helperText="Maximum total tickets a customer can book in a single transaction (default: 6)"
+                required
+              />
+
               {/* Event UPI Payment Redirection Config */}
               <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
                 <div className="flex items-center gap-2 text-white font-semibold text-xs">
@@ -1922,6 +1947,19 @@ export default function P1AdminPanelPage() {
                 value={newEvent.googleMapsUrl}
                 onChange={(e) => setNewEvent({ ...newEvent, googleMapsUrl: e.target.value })}
                 helperText="Redirects customer directly to Google Maps pin"
+              />
+
+              {/* Max Tickets per Booking / Transaction */}
+              <GlassInput
+                label="Max Tickets Per Transaction / Booking"
+                type="number"
+                min="1"
+                max="50"
+                placeholder="e.g. 6"
+                value={newEvent.maxTicketsPerBooking}
+                onChange={(e) => setNewEvent({ ...newEvent, maxTicketsPerBooking: e.target.value })}
+                helperText="Maximum total tickets a customer can book in a single transaction (default: 6)"
+                required
               />
 
               {/* Event UPI Payment Redirection Config */}

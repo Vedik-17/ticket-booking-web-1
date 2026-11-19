@@ -92,6 +92,7 @@ export interface Event {
   upiId?: string; // Event-specific UPI ID for payment redirection e.g. "solaris@okhdfcbank"
   upiPayeeName?: string; // Event-specific merchant/payee name
   whatsappPhone?: string; // Event-specific organiser WhatsApp contact
+  maxTicketsPerBooking?: number; // Maximum tickets allowed per transaction/booking (default: 6)
   createdAt: string;
   updatedAt: string;
 }

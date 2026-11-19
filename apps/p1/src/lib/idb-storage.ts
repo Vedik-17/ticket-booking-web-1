@@ -62,6 +62,7 @@ const DEFAULT_EVENTS: Event[] = [
     featured: true,
     upiId: 'solaris.festival@okhdfcbank',
     upiPayeeName: 'SOLARIS 2026 FESTIVAL',
+    maxTicketsPerBooking: 6,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -97,6 +98,7 @@ const DEFAULT_EVENTS: Event[] = [
     featured: true,
     upiId: 'prism.horizon@oksbi',
     upiPayeeName: 'PRISM HORIZON EXHIBIT',
+    maxTicketsPerBooking: 4,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -374,6 +376,12 @@ class P1MultiEventStore {
     const event = state.events.find((e) => e.id === params.eventId);
     if (!event) return { success: false, error: 'Event not found.' };
 
+    const maxAllowed = event.maxTicketsPerBooking || 6;
+    const totalQuantity = params.items.reduce((sum, item) => sum + item.quantity, 0);
+    if (totalQuantity > maxAllowed) {
+      return { success: false, error: `You can only book up to ${maxAllowed} tickets per transaction.` };
+    }
+
     let subtotalInPence = 0;
     const bookingItems = [];
 
@@ -381,6 +389,10 @@ class P1MultiEventStore {
       const tier = state.tiers.find((t) => t.id === item.tierId);
       if (!tier || tier.eventId !== params.eventId) {
         return { success: false, error: 'Invalid ticket tier selected.' };
+      }
+
+      if (tier.maxPerBooking && item.quantity > tier.maxPerBooking) {
+        return { success: false, error: `Maximum ${tier.maxPerBooking} tickets allowed for ${tier.name}.` };
       }
 
       const available = tier.capacity - tier.soldCount;
