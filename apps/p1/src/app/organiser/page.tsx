@@ -85,6 +85,7 @@ export default function P1AdminPanelPage() {
     endsAt: '',
     upiId: '',
     upiPayeeName: '',
+    whatsappPhone: '',
     maxTicketsPerBooking: '6',
     tier1Name: '',
     tier1Price: '',
@@ -116,6 +117,7 @@ export default function P1AdminPanelPage() {
     endsAt: '',
     upiId: '',
     upiPayeeName: '',
+    whatsappPhone: '',
     maxTicketsPerBooking: '6',
     tiers: [] as Array<{
       id?: string;
@@ -359,6 +361,7 @@ export default function P1AdminPanelPage() {
       galleryUrls: [],
       upiId: newEvent.upiId.trim() || undefined,
       upiPayeeName: newEvent.upiPayeeName.trim() || undefined,
+      whatsappPhone: newEvent.whatsappPhone.trim() || undefined,
       maxTicketsPerBooking: maxTix,
       venue: {
         name: newEvent.venueName.trim(),
@@ -425,6 +428,7 @@ export default function P1AdminPanelPage() {
       endsAt: '',
       upiId: '',
       upiPayeeName: '',
+      whatsappPhone: '',
       maxTicketsPerBooking: '6',
       tier1Name: '',
       tier1Price: '',
@@ -469,6 +473,7 @@ export default function P1AdminPanelPage() {
       endsAt: formatForInput(evt.schedule.endsAt),
       upiId: evt.upiId || '',
       upiPayeeName: evt.upiPayeeName || '',
+      whatsappPhone: evt.whatsappPhone || '',
       maxTicketsPerBooking: evt.maxTicketsPerBooking ? evt.maxTicketsPerBooking.toString() : '6',
       tiers: eventTiers.map((t) => ({
         id: t.id,
@@ -546,6 +551,7 @@ export default function P1AdminPanelPage() {
       posterUrl: editForm.posterUrl || editingEvent.posterUrl,
       upiId: editForm.upiId.trim() || undefined,
       upiPayeeName: editForm.upiPayeeName.trim() || undefined,
+      whatsappPhone: editForm.whatsappPhone.trim() || undefined,
       maxTicketsPerBooking: maxTix,
       venue: {
         ...editingEvent.venue,
@@ -1025,12 +1031,18 @@ export default function P1AdminPanelPage() {
                           ))}
                         </div>
 
-                        {/* Event badges: UPI & Max Booking limit */}
+                        {/* Event badges: UPI, WhatsApp & Max Booking limit */}
                         <div className="pt-0.5 flex flex-wrap gap-1.5">
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
                             <QrCode className="w-2.5 h-2.5 text-emerald-400" />
                             <span>UPI: {evt.upiId || 'System Default'}</span>
                           </span>
+                          {evt.whatsappPhone && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
+                              <MessageSquare className="w-2.5 h-2.5 text-emerald-400" />
+                              <span>WA: {evt.whatsappPhone}</span>
+                            </span>
+                          )}
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FF6A1A]/10 border border-[#FF6A1A]/20 text-[10px] text-[#FF9A45] font-medium">
                             <span>Max {evt.maxTicketsPerBooking || 6} tkts/booking</span>
                           </span>
@@ -1779,14 +1791,14 @@ export default function P1AdminPanelPage() {
                 required
               />
 
-              {/* Event UPI Payment Redirection Config */}
+              {/* Event UPI Payment & WhatsApp Redirection Config */}
               <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
                 <div className="flex items-center gap-2 text-white font-semibold text-xs">
                   <QrCode className="w-4 h-4 text-[#FF9A45]" />
-                  <span>UPI Payment Destination (Event Redirection)</span>
+                  <span>UPI Payment & WhatsApp Redirection</span>
                 </div>
                 <p className="text-[11px] text-white/50">
-                  Ticket bookings for this event will redirect payments and generate UPI QR codes for this specific UPI ID.
+                  Configure the UPI destination and WhatsApp contact for this event. Customer payment screenshots and confirmation requests will be sent directly to this WhatsApp number.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <GlassInput
@@ -1804,6 +1816,13 @@ export default function P1AdminPanelPage() {
                     helperText="Name displayed in UPI payment apps"
                   />
                 </div>
+                <GlassInput
+                  label="Organiser WhatsApp Number"
+                  placeholder="e.g. 9876543210 or +919876543210"
+                  value={editForm.whatsappPhone}
+                  onChange={(e) => setEditForm({ ...editForm, whatsappPhone: e.target.value })}
+                  helperText="Customers will be redirected to this WhatsApp chat with preloaded order details to send payment proof"
+                />
               </div>
 
               {/* Dynamic Ticket Tiers Section */}
@@ -2031,14 +2050,14 @@ export default function P1AdminPanelPage() {
                 required
               />
 
-              {/* Event UPI Payment Redirection Config */}
+              {/* Event UPI Payment & WhatsApp Redirection Config */}
               <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
                 <div className="flex items-center gap-2 text-white font-semibold text-xs">
                   <QrCode className="w-4 h-4 text-[#FF9A45]" />
-                  <span>UPI Payment Destination (Event Redirection)</span>
+                  <span>UPI Payment & WhatsApp Redirection</span>
                 </div>
                 <p className="text-[11px] text-white/50">
-                  Payments for this event will be directed to this UPI ID across all mobile UPI apps and the generated QR code.
+                  Configure the UPI destination and WhatsApp contact for this event. Customer payment screenshots and confirmation requests will be sent directly to this WhatsApp number.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <GlassInput
@@ -2056,6 +2075,13 @@ export default function P1AdminPanelPage() {
                     helperText="Name displayed in UPI payment apps"
                   />
                 </div>
+                <GlassInput
+                  label="Organiser WhatsApp Number"
+                  placeholder="e.g. 9876543210 or +919876543210"
+                  value={newEvent.whatsappPhone}
+                  onChange={(e) => setNewEvent({ ...newEvent, whatsappPhone: e.target.value })}
+                  helperText="Customers will be redirected to this WhatsApp chat with preloaded order details to send payment proof"
+                />
               </div>
 
               {/* Ticket Tiers Rates */}

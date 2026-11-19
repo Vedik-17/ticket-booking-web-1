@@ -16,10 +16,11 @@ import {
   ArrowLeft,
   Zap,
   Pencil,
+  MessageSquare,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Event, TicketTier } from '@firefly/shared-types';
-import { formatINR } from '@firefly/core';
+import { formatINR, buildWhatsAppLink } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
 
 export default function P1EventDetailPage() {
@@ -215,6 +216,24 @@ export default function P1EventDetailPage() {
                   )}
                 </div>
               </div>
+
+              {event.whatsappPhone && (
+                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-xs">
+                  <span className="text-white/50">Need Help?</span>
+                  <a
+                    href={buildWhatsAppLink(
+                      event.whatsappPhone,
+                      `Hi, I have an enquiry regarding "${event.title}".`
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 hover:underline inline-flex items-center gap-1 font-medium text-[11px]"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Chat with Organiser</span>
+                  </a>
+                </div>
+              )}
             </div>
           </GlassCard>
 

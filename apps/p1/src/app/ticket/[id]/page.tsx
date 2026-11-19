@@ -215,6 +215,23 @@ export default function P1TicketPassPage() {
             <span>Print Pass</span>
           </GlassButton>
         </div>
+
+        {event.whatsappPhone && (
+          <div className="text-center pt-2">
+            <a
+              href={buildWhatsAppLink(
+                event.whatsappPhone,
+                `Hi, I have a query regarding my ticket ${ticket.ticketNumber} for "${event.title}".`
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-white/50 hover:text-emerald-400 inline-flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Contact Organiser on WhatsApp</span>
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );

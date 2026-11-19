@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
 import { Booking, Event } from '@firefly/shared-types';
-import { formatINR, paiseToRupees } from '@firefly/core';
+import { formatINR, paiseToRupees, buildWhatsAppLink } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
 import { buildUpiUri, buildAppUpiUri, generateUpiQrDataUrl } from '@/lib/upi';
 
@@ -137,9 +137,8 @@ export default function P1UpiPaymentPage() {
     `• Total Amount: ${formatINR(booking.totalAmountInPence)}\n\n` +
     `Here is my UPI payment confirmation screenshot for manual verification.`;
 
-  const cleanPhone = adminWhatsAppPhone.replace(/\D/g, '');
-  const waRedirectUrl = cleanPhone.length >= 10
-    ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(preloadedWhatsAppText)}`
+  const waRedirectUrl = adminWhatsAppPhone.replace(/\D/g, '').length >= 10
+    ? buildWhatsAppLink(adminWhatsAppPhone, preloadedWhatsAppText)
     : `https://api.whatsapp.com/send?text=${encodeURIComponent(preloadedWhatsAppText)}`;
 
   const handlePayInAppClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
@@ -298,8 +297,13 @@ export default function P1UpiPaymentPage() {
           <div className="text-xs space-y-1">
             <p className="font-semibold text-white">Step 2: Send Payment Proof on WhatsApp</p>
             <p className="text-white/60">
-              After paying in your UPI app, send the payment screenshot on WhatsApp. The organiser will verify and instantly issue your QR entrance pass.
+              After paying in your UPI app, send the payment screenshot on WhatsApp. The organiser will verify your payment and issue your QR entrance pass.
             </p>
+            {adminWhatsAppPhone && (
+              <p className="text-[11px] text-emerald-400 font-mono pt-0.5">
+                Organiser Chat: <strong>{adminWhatsAppPhone}</strong>
+              </p>
+            )}
           </div>
         </div>
 
@@ -307,7 +311,11 @@ export default function P1UpiPaymentPage() {
           <GlassButton variant="primary" fullWidth size="md">
             <div className="flex items-center justify-center gap-2">
               <MessageSquare className="w-4 h-4 text-white" />
-              <span>Send Details on WhatsApp</span>
+              <span>
+                {adminWhatsAppPhone
+                  ? `Send Details to Organiser (${adminWhatsAppPhone})`
+                  : 'Send Details on WhatsApp'}
+              </span>
             </div>
           </GlassButton>
         </a>
