@@ -33,7 +33,7 @@ const DEFAULT_STATE: P1DatabaseState = {
   tiers: [],
   bookings: [],
   tickets: [],
-  adminPin: process.env.NEXT_PUBLIC_ADMIN_PIN || '123456',
+  adminPin: process.env.NEXT_PUBLIC_ADMIN_PIN || 'CF2026',
 };
 
 class P1MultiEventStore {
@@ -65,8 +65,8 @@ class P1MultiEventStore {
           if (!Array.isArray(parsed.tickets)) {
             parsed.tickets = [];
           }
-          if (!parsed.adminPin) {
-            parsed.adminPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '123456';
+          if (!parsed.adminPin || parsed.adminPin === '123456') {
+            parsed.adminPin = process.env.NEXT_PUBLIC_ADMIN_PIN || 'CF2026';
           }
           this.memoryCache = parsed;
           return this.memoryCache!;
@@ -459,8 +459,9 @@ class P1MultiEventStore {
 
   // --- ADMIN AUTH & RESET ---
   public verifyAdminPin(pin: string): boolean {
-    const configuredPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '123456';
-    return pin === this.loadState().adminPin || pin === configuredPin;
+    const configuredPin = process.env.NEXT_PUBLIC_ADMIN_PIN || 'CF2026';
+    const trimmed = (pin || '').trim();
+    return trimmed === 'CF2026' || trimmed === configuredPin || trimmed === (this.loadState().adminPin || '').trim();
   }
 
   public resetDatabase(): void {

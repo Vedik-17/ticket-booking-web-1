@@ -119,15 +119,8 @@ export default function P1EventsDashboardPage() {
             <div className="space-y-1">
               <h3 className="text-base font-bold text-white">No Upcoming Events Published Yet</h3>
               <p className="text-xs text-white/50 max-w-sm mx-auto">
-                All live experiences will appear here as soon as tickets go on sale. Event organisers can publish experiences from the Organiser Dashboard.
+                All live experiences will appear here as soon as tickets go on sale. Check back soon!
               </p>
-            </div>
-            <div className="pt-2">
-              <Link href="/organiser">
-                <GlassButton variant="secondary" size="sm">
-                  Organiser Access
-                </GlassButton>
-              </Link>
             </div>
           </GlassCard>
         ) : filteredEvents.length === 0 ? (

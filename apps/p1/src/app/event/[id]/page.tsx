@@ -340,7 +340,7 @@ export default function P1EventDetailPage() {
 
                 <GlassInput
                   label="Customer Full Name"
-                  placeholder="e.g. Rahul Verma"
+                  placeholder="Enter full name"
                   value={customer.fullName}
                   onChange={(e) => setCustomer({ ...customer, fullName: e.target.value })}
                   required
@@ -348,7 +348,7 @@ export default function P1EventDetailPage() {
                 <GlassInput
                   label="Mobile Number (WhatsApp)"
                   type="tel"
-                  placeholder="e.g. 9876543210"
+                  placeholder="10-digit mobile number"
                   value={customer.phone}
                   onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
                   helperText="QR ticket pass will be delivered to this WhatsApp number"

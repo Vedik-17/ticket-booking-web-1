@@ -63,7 +63,6 @@ export function FlexibleDateTimeInput({
         <label className="block text-xs font-semibold text-white/70 tracking-wide uppercase">
           {label} {required && <span className="text-[#FF6A1A]">*</span>}
         </label>
-        <span className="text-[10px] text-white/40">Free typing supported</span>
       </div>
 
       <div className="relative flex items-center">
@@ -110,7 +109,7 @@ export function FlexibleDateTimeInput({
           </div>
         ) : (
           <div className="text-[10px] text-white/30 truncate">
-            Type e.g. 21/11/2026, 07:00 PM or click calendar
+            DD/MM/YYYY, HH:MM AM/PM
           </div>
         )}
       </div>
@@ -148,3 +147,4 @@ export function FlexibleDateTimeInput({
     </div>
   );
 }
+

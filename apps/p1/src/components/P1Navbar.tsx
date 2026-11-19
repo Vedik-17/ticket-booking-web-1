@@ -50,7 +50,7 @@ export const P1Navbar = () => {
           className={`flex items-center gap-2.5 select-none transition-all duration-300 ${
             isSecretUnlocking ? 'scale-105 shadow-[0_0_30px_rgba(255,106,26,0.6)] rounded-2xl p-0.5' : ''
           }`}
-          title="Firefly (Triple tap for Organiser Admin)"
+          title="FIREFLY"
         >
           <div
             className={`flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-[#FF6A1A] to-[#FF9A45] shadow-lg shadow-[#FF6A1A]/30 transition-transform ${

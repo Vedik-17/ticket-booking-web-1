@@ -584,9 +584,9 @@ export default function P1AdminPanelPage() {
       tiers: [
         ...prev.tiers,
         {
-          name: 'Additional Tier',
-          priceInRupees: '999',
-          capacity: '100',
+          name: '',
+          priceInRupees: '',
+          capacity: '',
         },
       ],
     }));
@@ -853,28 +853,26 @@ export default function P1AdminPanelPage() {
 
           <div className="space-y-1">
             <h2 className="text-base font-bold text-white">Admin Panel Access</h2>
-            <p className="text-xs text-white/50">Enter the 6-digit administration passcode</p>
+            <p className="text-xs text-white/50">Enter administrator passcode</p>
           </div>
 
           <form onSubmit={handlePinSubmit} className="space-y-3">
             <input
               type="password"
-              maxLength={6}
+              maxLength={24}
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
-              placeholder="••••••"
+              placeholder="••••••••"
               className="w-full text-center tracking-widest text-lg font-mono py-2 rounded-xl bg-white/[0.05] border border-white/[0.12] text-white focus:outline-none focus:border-[#FF6A1A]"
               autoFocus
             />
 
-            {pinError && <p className="text-xs text-red-400">Incorrect PIN. (Default: 123456)</p>}
+            {pinError && <p className="text-xs text-red-400">Incorrect passcode. Please try again.</p>}
 
             <GlassButton type="submit" variant="primary" fullWidth size="md">
               Enter Admin Panel
             </GlassButton>
           </form>
-
-          <p className="text-[10px] text-white/40">Default Passcode: 123456</p>
         </GlassCard>
       </div>
     );
@@ -2254,21 +2252,21 @@ export default function P1AdminPanelPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <GlassInput
                     label="Tier 1 Name"
-                    placeholder="e.g. General Admission"
+                    placeholder="General Admission"
                     value={newEvent.tier1Name}
                     onChange={(e) => setNewEvent({ ...newEvent, tier1Name: e.target.value })}
                   />
                   <GlassInput
                     label="Rate (₹)"
                     type="number"
-                    placeholder="e.g. 999"
+                    placeholder="Ticket price"
                     value={newEvent.tier1Price}
                     onChange={(e) => setNewEvent({ ...newEvent, tier1Price: e.target.value })}
                   />
                   <GlassInput
                     label="Capacity"
                     type="number"
-                    placeholder="e.g. 500"
+                    placeholder="Seats / capacity"
                     value={newEvent.tier1Capacity}
                     onChange={(e) => setNewEvent({ ...newEvent, tier1Capacity: e.target.value })}
                   />
@@ -2277,21 +2275,21 @@ export default function P1AdminPanelPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <GlassInput
                     label="Tier 2 Name"
-                    placeholder="e.g. VIP Pass (Optional)"
+                    placeholder="VIP / Backstage (Optional)"
                     value={newEvent.tier2Name}
                     onChange={(e) => setNewEvent({ ...newEvent, tier2Name: e.target.value })}
                   />
                   <GlassInput
                     label="Rate (₹)"
                     type="number"
-                    placeholder="e.g. 2499"
+                    placeholder="Ticket price"
                     value={newEvent.tier2Price}
                     onChange={(e) => setNewEvent({ ...newEvent, tier2Price: e.target.value })}
                   />
                   <GlassInput
                     label="Capacity"
                     type="number"
-                    placeholder="e.g. 100"
+                    placeholder="Seats / capacity"
                     value={newEvent.tier2Capacity}
                     onChange={(e) => setNewEvent({ ...newEvent, tier2Capacity: e.target.value })}
                   />
