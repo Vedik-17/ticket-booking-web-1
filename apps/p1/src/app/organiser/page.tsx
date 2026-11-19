@@ -134,6 +134,7 @@ export default function P1AdminPanelPage() {
 
   const scannerRef = useRef<any>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -626,6 +627,7 @@ export default function P1AdminPanelPage() {
     } finally {
       setScanningPhoto(false);
       if (photoInputRef.current) photoInputRef.current.value = '';
+      if (galleryInputRef.current) galleryInputRef.current.value = '';
     }
   };
 
@@ -1141,22 +1143,35 @@ export default function P1AdminPanelPage() {
                       <div className="pt-2 border-t border-amber-500/20 space-y-2">
                         <div className="flex items-center gap-1.5 text-emerald-400 font-semibold text-xs">
                           <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Works Instantly with Phone Camera:</span>
+                          <span>Works Instantly with Phone Camera or Gallery:</span>
                         </div>
                         <p className="text-white/60 text-[11px]">
-                          Tap below to open your phone&apos;s native camera. It snaps the ticket QR code directly with zero permission errors!
+                          Snap with your phone camera or select a QR image directly from your gallery.
                         </p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCameraError(null);
-                            photoInputRef.current?.click();
-                          }}
-                          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] hover:opacity-90 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
-                        >
-                          <Camera className="w-4 h-4" />
-                          <span>📸 Snap Photo with Phone Camera</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCameraError(null);
+                              photoInputRef.current?.click();
+                            }}
+                            className="py-3 px-3 rounded-xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] hover:opacity-90 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all active:scale-[0.98]"
+                          >
+                            <Camera className="w-4 h-4" />
+                            <span>📸 Snap Camera</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCameraError(null);
+                              galleryInputRef.current?.click();
+                            }}
+                            className="py-3 px-3 rounded-xl bg-white/[0.10] hover:bg-white/[0.18] border border-white/[0.15] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg transition-all active:scale-[0.98]"
+                          >
+                            <ImageIcon className="w-4 h-4 text-[#FF9A45]" />
+                            <span>🖼️ From Gallery</span>
+                          </button>
+                        </div>
                       </div>
 
                       <div className="pt-2 border-t border-amber-500/20 flex items-center justify-between text-[11px]">
@@ -1215,15 +1230,27 @@ export default function P1AdminPanelPage() {
                           </div>
                         </GlassButton>
 
-                        {/* Secondary Action: Try continuous video */}
-                        <button
-                          type="button"
-                          onClick={startCameraScanner}
-                          className="w-full py-2.5 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/70 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
-                        >
-                          <Video className="w-3.5 h-3.5 text-[#FF9A45]" />
-                          <span>Try Continuous Live Viewfinder</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Upload Photo from Gallery */}
+                          <button
+                            type="button"
+                            onClick={() => galleryInputRef.current?.click()}
+                            className="py-2.5 px-3 rounded-xl bg-white/[0.08] hover:bg-white/[0.14] border border-white/[0.12] text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-[#FF9A45]" />
+                            <span>Upload from Gallery</span>
+                          </button>
+
+                          {/* Secondary Action: Try continuous video */}
+                          <button
+                            type="button"
+                            onClick={startCameraScanner}
+                            className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/70 hover:text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all"
+                          >
+                            <Video className="w-3.5 h-3.5 text-[#FF9A45]" />
+                            <span>Live Stream</span>
+                          </button>
+                        </div>
                       </>
                     ) : (
                       <>
@@ -1241,23 +1268,45 @@ export default function P1AdminPanelPage() {
                           </div>
                         </GlassButton>
 
-                        {/* Secondary Action: Snap Photo */}
-                        <button
-                          type="button"
-                          onClick={() => photoInputRef.current?.click()}
-                          className="w-full py-2.5 px-4 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/80 hover:text-white font-medium text-xs flex items-center justify-center gap-2 transition-all"
-                        >
-                          <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
-                          <span>{scanningPhoto ? 'Analyzing QR Photo...' : 'Snap Photo / Upload QR Image'}</span>
-                        </button>
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* Secondary Action: Snap Photo */}
+                          <button
+                            type="button"
+                            onClick={() => photoInputRef.current?.click()}
+                            className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/80 hover:text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all"
+                          >
+                            <Camera className="w-3.5 h-3.5 text-[#FF9A45]" />
+                            <span>Snap Photo</span>
+                          </button>
+
+                          {/* Secondary Action: Upload from Gallery */}
+                          <button
+                            type="button"
+                            onClick={() => galleryInputRef.current?.click()}
+                            className="py-2.5 px-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-white/80 hover:text-white font-medium text-xs flex items-center justify-center gap-1.5 transition-all"
+                          >
+                            <ImageIcon className="w-3.5 h-3.5 text-[#FF9A45]" />
+                            <span>From Gallery</span>
+                          </button>
+                        </div>
                       </>
                     )}
 
+                    {/* Camera Photo Input (Native Camera Capture) */}
                     <input
                       ref={photoInputRef}
                       type="file"
                       accept="image/*"
                       capture="environment"
+                      onChange={handlePhotoScan}
+                      className="hidden"
+                    />
+
+                    {/* Gallery Photo Input (Opens Photo Library / Files) */}
+                    <input
+                      ref={galleryInputRef}
+                      type="file"
+                      accept="image/*"
                       onChange={handlePhotoScan}
                       className="hidden"
                     />
@@ -1343,7 +1392,7 @@ export default function P1AdminPanelPage() {
                 )}
 
                 {/* Direct 1-Tap Next Scan Quick Action */}
-                <div className="pt-2 border-t border-current/20">
+                <div className="pt-2 border-t border-current/20 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -1352,10 +1401,22 @@ export default function P1AdminPanelPage() {
                         photoInputRef.current?.click();
                       }
                     }}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98]"
+                    className="py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] hover:opacity-95 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-[0.98]"
                   >
-                    <Camera className="w-4 h-4" />
-                    <span>📸 Scan Next Attendee Ticket</span>
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>Snap Camera</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScanResult(null);
+                      galleryInputRef.current?.click();
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-white/[0.12] hover:bg-white/[0.20] border border-white/[0.15] text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-[#FF9A45]" />
+                    <span>From Gallery</span>
                   </button>
                 </div>
               </div>
