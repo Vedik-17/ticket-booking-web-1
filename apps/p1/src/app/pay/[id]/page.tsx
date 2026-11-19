@@ -134,8 +134,7 @@ export default function P1UpiPaymentPage() {
     `• Event: ${event?.title || 'Event'}\n` +
     `• Destination UPI ID: ${effectiveUpiId || 'Contact Organiser'}\n` +
     `• Tickets: ${ticketsSummary}\n` +
-    `• Total Amount: ${formatINR(booking.totalAmountInPence)}\n\n` +
-    `Here is my UPI payment confirmation screenshot for manual verification.`;
+    `• Total Amount: ${formatINR(booking.totalAmountInPence)}`;
 
   const waRedirectUrl = adminWhatsAppPhone.replace(/\D/g, '').length >= 10
     ? buildWhatsAppLink(adminWhatsAppPhone, preloadedWhatsAppText)
