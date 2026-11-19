@@ -96,6 +96,7 @@ export default function P1AdminPanelPage() {
   });
   const [bannerPreview, setBannerPreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Edit Event Modal State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -103,6 +104,7 @@ export default function P1AdminPanelPage() {
   const editFileInputRef = useRef<HTMLInputElement | null>(null);
   const [editBannerPreview, setEditBannerPreview] = useState<string>('');
   const [uploadingEditImage, setUploadingEditImage] = useState(false);
+  const [isEditDragging, setIsEditDragging] = useState(false);
   const [editForm, setEditForm] = useState({
     title: '',
     tagline: '',
@@ -302,20 +304,72 @@ export default function P1AdminPanelPage() {
     }
   };
 
+  // Unified Image Processor (Compresses and stores image for both click and drag & drop)
+  const processImageFile = async (file: File, isEdit: boolean = false) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please select or drop a valid image file (PNG, JPG, WebP).');
+      return;
+    }
+
+    if (isEdit) {
+      setUploadingEditImage(true);
+      try {
+        const dataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
+        setEditBannerPreview(dataUrl);
+        setEditForm((prev) => ({ ...prev, posterUrl: dataUrl }));
+      } catch {
+        alert('Could not compress image');
+      } finally {
+        setUploadingEditImage(false);
+      }
+    } else {
+      setUploadingImage(true);
+      try {
+        const dataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
+        setBannerPreview(dataUrl);
+        setNewEvent((prev) => ({ ...prev, posterUrl: dataUrl }));
+      } catch {
+        alert('Could not compress image');
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+  };
+
   // Banner Image Upload for New Event
   const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) await processImageFile(file, false);
+    e.target.value = '';
+  };
 
-    setUploadingImage(true);
-    try {
-      const dataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
-      setBannerPreview(dataUrl);
-      setNewEvent((prev) => ({ ...prev, posterUrl: dataUrl }));
-    } catch {
-      alert('Could not compress image');
-    } finally {
-      setUploadingImage(false);
+  // Drag & Drop Handlers for New Event Poster
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processImageFile(file, false);
     }
   };
 
@@ -488,17 +542,37 @@ export default function P1AdminPanelPage() {
   // Banner upload inside Edit Modal
   const handleEditBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (file) await processImageFile(file, true);
+    e.target.value = '';
+  };
 
-    setUploadingEditImage(true);
-    try {
-      const dataUrl = await compressImageToDataUrl(file, 1200, 800, 0.82);
-      setEditBannerPreview(dataUrl);
-      setEditForm((prev) => ({ ...prev, posterUrl: dataUrl }));
-    } catch {
-      alert('Could not compress image');
-    } finally {
-      setUploadingEditImage(false);
+  // Drag & Drop Handlers for Edit Event Poster
+  const handleEditDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isEditDragging) setIsEditDragging(true);
+  };
+
+  const handleEditDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsEditDragging(true);
+  };
+
+  const handleEditDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsEditDragging(false);
+  };
+
+  const handleEditDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsEditDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      await processImageFile(file, true);
     }
   };
 
@@ -1656,42 +1730,80 @@ export default function P1AdminPanelPage() {
             </div>
 
             <form onSubmit={handleSaveEditedEvent} className="space-y-4 text-xs">
-              {/* Photo Upload & Preview */}
+              {/* Photo Upload & Preview with Drag & Drop */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-white/70 uppercase">Banner Photo</label>
-                <div className="relative h-40 rounded-xl overflow-hidden border border-white/[0.12] bg-neutral-900 group">
-                  <img
-                    src={editBannerPreview || editForm.posterUrl}
-                    alt="Banner Preview"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button
-                      type="button"
-                      onClick={() => editFileInputRef.current?.click()}
-                      className="px-3 py-1.5 rounded-lg bg-white/20 text-white text-xs border border-white/30 backdrop-blur-sm"
-                    >
-                      Change Photo
-                    </button>
-                  </div>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Banner Poster</label>
+                  <span className="text-[10px] text-white/40">Drag & Drop or Click to Browse</span>
+                </div>
+
+                <div
+                  onDragOver={handleEditDragOver}
+                  onDragEnter={handleEditDragEnter}
+                  onDragLeave={handleEditDragLeave}
+                  onDrop={handleEditDrop}
+                  onClick={() => editFileInputRef.current?.click()}
+                  className={`relative h-44 rounded-2xl overflow-hidden border-2 border-dashed cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center ${
+                    isEditDragging
+                      ? 'border-[#FF6A1A] bg-[#FF6A1A]/15 ring-4 ring-[#FF6A1A]/30 scale-[1.01]'
+                      : (editBannerPreview || editForm.posterUrl)
+                      ? 'border-white/[0.15] bg-neutral-900 hover:border-[#FF6A1A]/60'
+                      : 'border-white/[0.20] hover:border-[#FF6A1A]/60 bg-white/[0.02] hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {(editBannerPreview || editForm.posterUrl) ? (
+                    <>
+                      <img
+                        src={editBannerPreview || editForm.posterUrl}
+                        alt="Banner Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 text-white">
+                        <Upload className="w-5 h-5 text-[#FF9A45]" />
+                        <span className="text-xs font-semibold">Drop new poster or click to change</span>
+                        <span className="text-[10px] text-white/60">PNG, JPG, WebP up to 10MB</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-4 text-center space-y-2 pointer-events-none">
+                      <div
+                        className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center transition-transform ${
+                          isEditDragging
+                            ? 'bg-[#FF6A1A] text-white scale-110 shadow-lg shadow-[#FF6A1A]/40'
+                            : 'bg-white/[0.06] text-[#FF9A45] group-hover:scale-105'
+                        }`}
+                      >
+                        <Upload className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-white">
+                          {isEditDragging ? 'Drop poster image here!' : 'Drag & drop event poster here'}
+                        </p>
+                        <p className="text-[11px] text-white/50">
+                          or <span className="text-[#FF9A45] underline underline-offset-2">browse files</span>
+                        </p>
+                      </div>
+                      <span className="inline-block text-[10px] font-mono text-white/35">
+                        JPEG • PNG • WebP (Auto-optimized)
+                      </span>
+                    </div>
+                  )}
+
+                  {uploadingEditImage && (
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center gap-2 text-xs text-white">
+                      <div className="w-4 h-4 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin" />
+                      <span>Optimizing image...</span>
+                    </div>
+                  )}
                 </div>
 
                 <input
                   ref={editFileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
                   onChange={handleEditBannerUpload}
                   className="hidden"
                 />
-
-                <button
-                  type="button"
-                  onClick={() => editFileInputRef.current?.click()}
-                  className="w-full py-2 rounded-xl border border-dashed border-white/20 hover:border-[#FF6A1A]/60 text-white/70 hover:text-white flex items-center justify-center gap-1.5 text-xs transition-colors"
-                >
-                  <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
-                  <span>{uploadingEditImage ? 'Compressing image...' : 'Upload New Banner Photo'}</span>
-                </button>
               </div>
 
               {/* Title & Tagline */}
@@ -1935,46 +2047,76 @@ export default function P1AdminPanelPage() {
             </div>
 
             <form onSubmit={handleCreateEvent} className="space-y-4 text-xs">
-              {/* Photo Upload */}
+              {/* Photo Upload with Drag & Drop */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-white/70 uppercase">Banner Photo</label>
-                <div className="relative h-36 rounded-xl overflow-hidden border border-white/[0.12] bg-neutral-900 group">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-white/70 uppercase">Banner Poster</label>
+                  <span className="text-[10px] text-white/40">Drag & Drop or Click to Browse</span>
+                </div>
+
+                <div
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative h-44 rounded-2xl overflow-hidden border-2 border-dashed cursor-pointer transition-all duration-200 group flex flex-col items-center justify-center ${
+                    isDragging
+                      ? 'border-[#FF6A1A] bg-[#FF6A1A]/15 ring-4 ring-[#FF6A1A]/30 scale-[1.01]'
+                      : bannerPreview
+                      ? 'border-white/[0.15] bg-neutral-900 hover:border-[#FF6A1A]/60'
+                      : 'border-white/[0.20] hover:border-[#FF6A1A]/60 bg-white/[0.02] hover:bg-white/[0.04]'
+                  }`}
+                >
                   {bannerPreview ? (
-                    <img src={bannerPreview} alt="Banner Preview" className="w-full h-full object-cover" />
+                    <>
+                      <img src={bannerPreview} alt="Banner Preview" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 text-white">
+                        <Upload className="w-5 h-5 text-[#FF9A45]" />
+                        <span className="text-xs font-semibold">Drop new poster or click to change</span>
+                        <span className="text-[10px] text-white/60">PNG, JPG, WebP up to 10MB</span>
+                      </div>
+                    </>
                   ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-white/40 space-y-1">
-                      <ImageIcon className="w-6 h-6" />
-                      <span>Upload Banner Photo</span>
+                    <div className="p-4 text-center space-y-2 pointer-events-none">
+                      <div
+                        className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center transition-transform ${
+                          isDragging
+                            ? 'bg-[#FF6A1A] text-white scale-110 shadow-lg shadow-[#FF6A1A]/40'
+                            : 'bg-white/[0.06] text-[#FF9A45] group-hover:scale-105'
+                        }`}
+                      >
+                        <Upload className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <p className="text-xs font-semibold text-white">
+                          {isDragging ? 'Drop poster image here!' : 'Drag & drop event poster here'}
+                        </p>
+                        <p className="text-[11px] text-white/50">
+                          or <span className="text-[#FF9A45] underline underline-offset-2">browse files</span>
+                        </p>
+                      </div>
+                      <span className="inline-block text-[10px] font-mono text-white/35">
+                        JPEG • PNG • WebP (Auto-optimized)
+                      </span>
                     </div>
                   )}
 
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-3 py-1 rounded bg-white/20 text-white text-xs border border-white/30"
-                    >
-                      Change Photo
-                    </button>
-                  </div>
+                  {uploadingImage && (
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center gap-2 text-xs text-white">
+                      <div className="w-4 h-4 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin" />
+                      <span>Optimizing image...</span>
+                    </div>
+                  )}
                 </div>
 
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/png,image/jpeg,image/webp,image/jpg"
                   onChange={handleBannerUpload}
                   className="hidden"
                 />
-
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2 rounded-xl border border-dashed border-white/20 hover:border-[#FF6A1A]/60 text-white/70 hover:text-white flex items-center justify-center gap-1.5 text-xs"
-                >
-                  <Upload className="w-3.5 h-3.5 text-[#FF9A45]" />
-                  <span>{uploadingImage ? 'Compressing...' : 'Click to Upload Banner Image'}</span>
-                </button>
               </div>
 
               {/* Title & Tagline */}
