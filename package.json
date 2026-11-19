@@ -9,11 +9,15 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=@firefly/v1",
-    "dev:v1": "npm run dev --workspace=@firefly/v1",
+    "dev": "npm run dev --workspace=@firefly/p1",
     "dev:p1": "npm run dev --workspace=@firefly/p1",
-    "build": "npm run build --workspace=@firefly/v1",
+    "dev:v1": "npm run dev --workspace=@firefly/v1",
+    "build": "npm run build --workspace=@firefly/p1",
     "build:p1": "npm run build --workspace=@firefly/p1",
+    "build:v1": "npm run build --workspace=@firefly/v1",
+    "start": "npm run start --workspace=@firefly/p1",
+    "start:p1": "npm run start --workspace=@firefly/p1",
+    "start:v1": "npm run start --workspace=@firefly/v1",
     "test": "npm run test --workspace=@firefly/v1",
     "lint": "npm run lint --workspace=@firefly/v1",
     "typecheck": "npm run typecheck --workspace=@firefly/v1"
