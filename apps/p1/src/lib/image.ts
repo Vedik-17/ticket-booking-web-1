@@ -142,7 +142,7 @@ export async function generateTicketCardDataUrl(params: {
   const qx = 150, qy = 250, qw = 300, qh = 300;
   ctx.fillStyle = '#FFFFFF';
   ctx.beginPath();
-  if ('roundRect' in ctx) {
+  if (typeof (ctx as any).roundRect === 'function') {
     (ctx as any).roundRect(qx, qy, qw, qh, 20);
   } else {
     ctx.rect(qx, qy, qw, qh);
@@ -170,7 +170,7 @@ export async function generateTicketCardDataUrl(params: {
   // Security Verification Box
   ctx.fillStyle = '#141414';
   ctx.beginPath();
-  if ('roundRect' in ctx) {
+  if (typeof (ctx as any).roundRect === 'function') {
     (ctx as any).roundRect(40, 660, 520, 70, 12);
   } else {
     ctx.rect(40, 660, 520, 70);

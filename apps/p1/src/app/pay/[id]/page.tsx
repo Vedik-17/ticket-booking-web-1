@@ -37,7 +37,7 @@ export default function P1UpiPaymentPage() {
 
   // Effective UPI destination (Event-specific override with fallback to system default)
   const effectiveUpiId = event?.upiId?.trim() || p1Storage.defaultUpiId;
-  const effectivePayeeName = event?.upiPayeeName?.trim() || event?.title || p1Storage.defaultPayeeName;
+  const effectivePayeeName = event?.upiPayeeName?.trim() || event?.title || p1Storage.defaultPayeeName || 'Event Organiser';
   const adminWhatsAppPhone = event?.whatsappPhone?.trim() || p1Storage.defaultAdminPhone;
 
   useEffect(() => {
@@ -57,19 +57,21 @@ export default function P1UpiPaymentPage() {
         }
 
         const targetUpiId = e?.upiId?.trim() || p1Storage.defaultUpiId;
-        const targetPayee = e?.upiPayeeName?.trim() || e?.title || p1Storage.defaultPayeeName;
+        const targetPayee = e?.upiPayeeName?.trim() || e?.title || p1Storage.defaultPayeeName || 'Event Organiser';
 
-        // Generate dynamic exact-amount UPI QR targeting this event's UPI ID
-        const amountInRupees = paiseToRupees(b.totalAmountInPence);
-        const uri = buildUpiUri({
-          upiId: targetUpiId,
-          payeeName: targetPayee,
-          amountInRupees,
-          transactionNote: `Firefly ${b.bookingReference}`,
-          transactionRef: b.bookingReference,
-        });
+        // Generate dynamic exact-amount UPI QR targeting this event's UPI ID if available
+        if (targetUpiId) {
+          const amountInRupees = paiseToRupees(b.totalAmountInPence);
+          const uri = buildUpiUri({
+            upiId: targetUpiId,
+            payeeName: targetPayee,
+            amountInRupees,
+            transactionNote: `Firefly ${b.bookingReference}`,
+            transactionRef: b.bookingReference,
+          });
 
-        generateUpiQrDataUrl(uri).then(setQrDataUrl);
+          generateUpiQrDataUrl(uri).then(setQrDataUrl);
+        }
       }
     }
   }, [bookingId, router]);
@@ -130,14 +132,15 @@ export default function P1UpiPaymentPage() {
     `• Customer Name: ${booking.customer.fullName}\n` +
     `• Mobile Number: ${booking.customer.phone}\n` +
     `• Event: ${event?.title || 'Event'}\n` +
-    `• Destination UPI ID: ${effectiveUpiId}\n` +
+    `• Destination UPI ID: ${effectiveUpiId || 'Contact Organiser'}\n` +
     `• Tickets: ${ticketsSummary}\n` +
     `• Total Amount: ${formatINR(booking.totalAmountInPence)}\n\n` +
     `Here is my UPI payment confirmation screenshot for manual verification.`;
 
-  const waRedirectUrl = `https://wa.me/${adminWhatsAppPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
-    preloadedWhatsAppText
-  )}`;
+  const cleanPhone = adminWhatsAppPhone.replace(/\D/g, '');
+  const waRedirectUrl = cleanPhone.length >= 10
+    ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(preloadedWhatsAppText)}`
+    : `https://api.whatsapp.com/send?text=${encodeURIComponent(preloadedWhatsAppText)}`;
 
   const handlePayInAppClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Attempt location redirect as well to guarantee intent trigger across mobile browsers
@@ -171,107 +174,122 @@ export default function P1UpiPaymentPage() {
         </div>
 
         {/* --- MAIN HERO CTA: PAY IN APP (OPENS APP DRAWER) --- */}
-        <div className="pt-2">
-          <a
-            href={genericUpiUri}
-            rel="external"
-            target="_top"
-            onClick={handlePayInAppClick}
-            className="group relative block w-full text-center py-4 px-5 rounded-2xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] text-white font-bold text-base shadow-[0_8px_32px_0_rgba(255,106,26,0.40)] hover:shadow-[0_12px_44px_0_rgba(255,106,26,0.60)] transition-all active:scale-[0.98] border border-white/20"
-          >
-            <div className="flex items-center justify-center gap-2.5">
-              <Smartphone className="w-5 h-5 text-white animate-bounce" />
-              <span className="text-lg tracking-tight">Pay in App</span>
-              <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1.5 transition-transform" />
+        {effectiveUpiId ? (
+          <>
+            <div className="pt-2">
+              <a
+                href={genericUpiUri}
+                rel="external"
+                target="_top"
+                onClick={handlePayInAppClick}
+                className="group relative block w-full text-center py-4 px-5 rounded-2xl bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] text-white font-bold text-base shadow-[0_8px_32px_0_rgba(255,106,26,0.40)] hover:shadow-[0_12px_44px_0_rgba(255,106,26,0.60)] transition-all active:scale-[0.98] border border-white/20"
+              >
+                <div className="flex items-center justify-center gap-2.5">
+                  <Smartphone className="w-5 h-5 text-white animate-bounce" />
+                  <span className="text-lg tracking-tight">Pay in App</span>
+                  <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1.5 transition-transform" />
+                </div>
+                <span className="block text-[11px] font-medium text-white/95 mt-1">
+                  Tap to open installed UPI apps (PhonePe, GPay, Paytm, Navi, Supermoney, Pop UPI & all)
+                </span>
+              </a>
             </div>
-            <span className="block text-[11px] font-medium text-white/95 mt-1">
-              Tap to open installed UPI apps (PhonePe, GPay, Paytm, Navi, Supermoney, Pop UPI & all)
-            </span>
-          </a>
-        </div>
 
-        {/* Copy UPI ID bar */}
-        <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-xs">
-          <div className="text-left font-mono truncate mr-2">
-            <span className="text-[10px] text-white/40 block">
-              Payee: <strong className="text-white font-sans">{effectivePayeeName}</strong>
-            </span>
-            <span className="text-emerald-400 font-semibold text-xs">{effectiveUpiId}</span>
-          </div>
-          <button
-            onClick={copyUpiId}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-[#FF9A45] font-medium text-xs transition-colors shrink-0"
-          >
-            {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy UPI'}</span>
-          </button>
-        </div>
-      </GlassCard>
-
-      {/* Quick Launch Buttons for Popular Apps */}
-      <GlassCard className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-            Quick Launch by App
-          </h3>
-          <span className="text-[10px] text-white/40">Direct Intent</span>
-        </div>
-        <div className="grid grid-cols-4 gap-2 text-xs">
-          <a
-            href={gpayUri}
-            className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
-          >
-            Google Pay
-          </a>
-          <a
-            href={phonePeUri}
-            className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
-          >
-            PhonePe
-          </a>
-          <a
-            href={paytmUri}
-            className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
-          >
-            Paytm
-          </a>
-          <a
-            href={credUri}
-            className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
-          >
-            CRED
-          </a>
-        </div>
-      </GlassCard>
-
-      {/* QR Code Section (Collapsible / Toggle for desktop or scanning with second phone) */}
-      <GlassCard className="space-y-3 text-center">
-        <button
-          onClick={() => setShowQr(!showQr)}
-          className="w-full flex items-center justify-between py-1 text-xs font-medium text-white/70 hover:text-white transition-colors"
-        >
-          <span className="flex items-center gap-2">
-            <QrCode className="w-4 h-4 text-[#FF9A45]" />
-            <span>{showQr ? 'Hide UPI QR Code' : 'Show UPI QR Code (To scan from another device)'}</span>
-          </span>
-          {showQr ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-
-        {showQr && (
-          <div className="pt-2 space-y-3">
-            <div className="p-4 rounded-2xl bg-white shadow-xl inline-block mx-auto">
-              {qrDataUrl ? (
-                <img src={qrDataUrl} alt="UPI QR Code" className="w-52 h-52 object-contain" />
-              ) : (
-                <div className="w-52 h-52 bg-neutral-200 animate-pulse" />
-              )}
+            {/* Copy UPI ID bar */}
+            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between text-xs">
+              <div className="text-left font-mono truncate mr-2">
+                <span className="text-[10px] text-white/40 block">
+                  Payee: <strong className="text-white font-sans">{effectivePayeeName}</strong>
+                </span>
+                <span className="text-emerald-400 font-semibold text-xs">{effectiveUpiId}</span>
+              </div>
+              <button
+                onClick={copyUpiId}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.08] hover:bg-white/[0.15] text-[#FF9A45] font-medium text-xs transition-colors shrink-0"
+              >
+                {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{copied ? 'Copied' : 'Copy UPI'}</span>
+              </button>
             </div>
-            <p className="text-[11px] text-white/50">
-              Scan with any UPI app scanner (Navi, Pop, Supermoney, GPay, PhonePe, Paytm, BHIM)
+          </>
+        ) : (
+          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center space-y-1.5 text-xs">
+            <span className="font-semibold text-amber-400 block">UPI Configuration Pending</span>
+            <p className="text-white/70 text-[11px]">
+              Organiser has not set a destination UPI ID for this event yet. Please send your booking details on WhatsApp below to arrange payment.
             </p>
           </div>
         )}
       </GlassCard>
+
+      {/* Quick Launch Buttons for Popular Apps (Only if UPI ID configured) */}
+      {effectiveUpiId && (
+        <GlassCard className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+              Quick Launch by App
+            </h3>
+            <span className="text-[10px] text-white/40">Direct Intent</span>
+          </div>
+          <div className="grid grid-cols-4 gap-2 text-xs">
+            <a
+              href={gpayUri}
+              className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
+            >
+              Google Pay
+            </a>
+            <a
+              href={phonePeUri}
+              className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
+            >
+              PhonePe
+            </a>
+            <a
+              href={paytmUri}
+              className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
+            >
+              Paytm
+            </a>
+            <a
+              href={credUri}
+              className="p-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.12] border border-white/[0.08] text-center font-medium text-white transition-all hover:border-[#FF6A1A]/40"
+            >
+              CRED
+            </a>
+          </div>
+        </GlassCard>
+      )}
+
+      {/* QR Code Section (Only if UPI ID configured) */}
+      {effectiveUpiId && (
+        <GlassCard className="space-y-3 text-center">
+          <button
+            onClick={() => setShowQr(!showQr)}
+            className="w-full flex items-center justify-between py-1 text-xs font-medium text-white/70 hover:text-white transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <QrCode className="w-4 h-4 text-[#FF9A45]" />
+              <span>{showQr ? 'Hide UPI QR Code' : 'Show UPI QR Code (To scan from another device)'}</span>
+            </span>
+            {showQr ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showQr && (
+            <div className="pt-2 space-y-3">
+              <div className="p-4 rounded-2xl bg-white shadow-xl inline-block mx-auto">
+                {qrDataUrl ? (
+                  <img src={qrDataUrl} alt="UPI QR Code" className="w-52 h-52 object-contain" />
+                ) : (
+                  <div className="w-52 h-52 bg-neutral-200 animate-pulse" />
+                )}
+              </div>
+              <p className="text-[11px] text-white/50">
+                Scan with any UPI app scanner (Navi, Pop, Supermoney, GPay, PhonePe, Paytm, BHIM)
+              </p>
+            </div>
+          )}
+        </GlassCard>
+      )}
 
       {/* WhatsApp Confirmation Dispatch */}
       <GlassCard className="space-y-3">

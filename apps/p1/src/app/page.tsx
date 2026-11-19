@@ -111,7 +111,26 @@ export default function P1EventsDashboardPage() {
           </h2>
         </div>
 
-        {filteredEvents.length === 0 ? (
+        {events.length === 0 ? (
+          <GlassCard className="text-center py-16 px-4 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/[0.10] mx-auto flex items-center justify-center text-[#FF9A45]">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-white">No Upcoming Events Published Yet</h3>
+              <p className="text-xs text-white/50 max-w-sm mx-auto">
+                All live experiences will appear here as soon as tickets go on sale. Event organisers can publish experiences from the Organiser Dashboard.
+              </p>
+            </div>
+            <div className="pt-2">
+              <Link href="/organiser">
+                <GlassButton variant="secondary" size="sm">
+                  Organiser Access
+                </GlassButton>
+              </Link>
+            </div>
+          </GlassCard>
+        ) : filteredEvents.length === 0 ? (
           <div className="text-center py-16 space-y-2 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
             <p className="text-xs text-white/50">No events found matching your search.</p>
             <button

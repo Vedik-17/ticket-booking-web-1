@@ -22,168 +22,32 @@ export interface P1DatabaseState {
   adminPin: string;
 }
 
-const STORAGE_KEY = 'firefly_p1_multievent_store_v2';
+const STORAGE_KEY = 'firefly_p1_prod_store_v1';
 
-const DEFAULT_EVENTS: Event[] = [
-  {
-    id: 'e-solaris-2026',
-    organiserId: 'org-1',
-    title: 'SOLARIS 2026: Liquid Electronic Festival',
-    slug: 'solaris-2026',
-    tagline: 'A transcendent 12-hour melodic techno & progressive experience under open skies.',
-    description:
-      'Immerse in an audio-visual spectacle featuring world-class progressive techno pioneers, multi-dimensional holographic stage architecture, spatial acoustics, and ambient liquid installations.',
-    category: 'MUSIC_FESTIVAL',
-    status: 'PUBLISHED',
-    posterUrl:
-      'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=1200&q=80',
-    galleryUrls: [
-      'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=800&q=80',
-    ],
-    venue: {
-      name: 'GMR Arena Grounds',
-      address: 'Outer Ring Road, Shamshabad',
-      city: 'Hyderabad',
-      state: 'Telangana',
-      postalCode: '500108',
-      country: 'India',
-      googleMapsUrl: 'https://maps.google.com/?q=GMR+Arena+Hyderabad',
-    },
-    schedule: {
-      doorsOpenAt: '2026-12-15T16:00:00Z',
-      startsAt: '2026-12-15T17:00:00Z',
-      endsAt: '2026-12-16T04:00:00Z',
-      timezone: 'Asia/Kolkata',
-    },
-    isAgeRestricted: true,
-    minimumAge: 21,
-    termsAndConditions:
-      'Government photo ID mandatory at entrance. No entry without confirmed QR ticket pass.',
-    featured: true,
-    upiId: 'solaris.festival@okhdfcbank',
-    upiPayeeName: 'SOLARIS 2026 FESTIVAL',
-    maxTicketsPerBooking: 6,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'e-prism-horizon',
-    organiserId: 'org-1',
-    title: 'Prism Horizon: Modern Light & Sound Exhibition',
-    slug: 'prism-horizon',
-    tagline: 'Interactive kinetic sculpture, refractive lasers, and ambient soundscapes.',
-    description:
-      'Step inside an otherworldly labyrinth of responsive LED arrays, infinity glass corridors, and spatial synth compositions designed to reshape perception of architectural light.',
-    category: 'EXHIBITION',
-    status: 'PUBLISHED',
-    posterUrl:
-      'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=1200&q=80',
-    galleryUrls: [],
-    venue: {
-      name: 'The Glass Pavilions',
-      address: '42 Hitec City Main Road, Cyberabad',
-      city: 'Hyderabad',
-      state: 'Telangana',
-      postalCode: '500081',
-      country: 'India',
-      googleMapsUrl: 'https://maps.google.com/?q=Hitec+City+Hyderabad',
-    },
-    schedule: {
-      doorsOpenAt: '2026-11-28T10:00:00Z',
-      startsAt: '2026-11-28T11:00:00Z',
-      endsAt: '2026-11-28T22:00:00Z',
-      timezone: 'Asia/Kolkata',
-    },
-    isAgeRestricted: false,
-    featured: true,
-    upiId: 'prism.horizon@oksbi',
-    upiPayeeName: 'PRISM HORIZON EXHIBIT',
-    maxTicketsPerBooking: 4,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+const DEFAULT_EVENTS: Event[] = [];
 
-const DEFAULT_TIERS: TicketTier[] = [
-  {
-    id: 'tier-solaris-ga',
-    eventId: 'e-solaris-2026',
-    name: 'General Admission',
-    description: 'Main festival bowl access & outdoor acoustic pavilions.',
-    priceInPence: 199900, // ₹1,999
-    currency: 'INR',
-    capacity: 500,
-    reservedCount: 0,
-    soldCount: 8,
-    minPerBooking: 1,
-    maxPerBooking: 6,
-    salesStartAt: '2026-01-01T00:00:00Z',
-    salesEndAt: '2026-12-15T15:00:00Z',
-    status: 'ACTIVE',
-    perks: ['Main Stage Access', 'Express Gate Entry'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'tier-solaris-vip',
-    eventId: 'e-solaris-2026',
-    name: 'VIP Deck & Backstage Lounge',
-    description: 'Elevated mezzanine viewing platform with dedicated bar.',
-    priceInPence: 499900, // ₹4,999
-    currency: 'INR',
-    capacity: 100,
-    reservedCount: 0,
-    soldCount: 3,
-    minPerBooking: 1,
-    maxPerBooking: 4,
-    salesStartAt: '2026-01-01T00:00:00Z',
-    salesEndAt: '2026-12-15T15:00:00Z',
-    status: 'ACTIVE',
-    perks: ['Elevated Viewing Platform', 'Complimentary Welcome Beverage', 'Priority Parking'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: 'tier-prism-pass',
-    eventId: 'e-prism-horizon',
-    name: 'Standard Gallery Pass',
-    description: 'Admission to all refractive light chambers & spatial audio exhibits.',
-    priceInPence: 79900, // ₹799
-    currency: 'INR',
-    capacity: 300,
-    reservedCount: 0,
-    soldCount: 12,
-    minPerBooking: 1,
-    maxPerBooking: 8,
-    salesStartAt: '2026-01-01T00:00:00Z',
-    salesEndAt: '2026-11-28T20:00:00Z',
-    status: 'ACTIVE',
-    perks: ['All Exhibition Halls Access', 'Digital Audio Guide'],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+const DEFAULT_TIERS: TicketTier[] = [];
 
 const DEFAULT_STATE: P1DatabaseState = {
-  events: DEFAULT_EVENTS,
-  tiers: DEFAULT_TIERS,
+  events: [],
+  tiers: [],
   bookings: [],
   tickets: [],
-  adminPin: '123456',
+  adminPin: process.env.NEXT_PUBLIC_ADMIN_PIN || '123456',
 };
 
 class P1MultiEventStore {
   private memoryCache: P1DatabaseState | null = null;
   // Default fallback receiving UPI ID if event doesn't specify one
-  public defaultUpiId = 'firefly.tickets@okhdfcbank';
-  public defaultPayeeName = 'Firefly Live Events';
-  public defaultAdminPhone = '919876543210';
+  public defaultUpiId = process.env.NEXT_PUBLIC_DEFAULT_UPI_ID || '';
+  public defaultPayeeName = process.env.NEXT_PUBLIC_DEFAULT_PAYEE_NAME || '';
+  public defaultAdminPhone = process.env.NEXT_PUBLIC_DEFAULT_ADMIN_PHONE || '';
 
   private loadState(): P1DatabaseState {
     if (typeof window === 'undefined') {
       return DEFAULT_STATE;
     }
-    if (this.memoryCache && Array.isArray(this.memoryCache.events) && this.memoryCache.events.length > 0) {
+    if (this.memoryCache && Array.isArray(this.memoryCache.events)) {
       return this.memoryCache;
     }
 
@@ -191,9 +55,18 @@ class P1MultiEventStore {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.events) && parsed.events.length > 0) {
-          if (!Array.isArray(parsed.tiers) || parsed.tiers.length === 0) {
-            parsed.tiers = DEFAULT_TIERS;
+        if (parsed && Array.isArray(parsed.events)) {
+          if (!Array.isArray(parsed.tiers)) {
+            parsed.tiers = [];
+          }
+          if (!Array.isArray(parsed.bookings)) {
+            parsed.bookings = [];
+          }
+          if (!Array.isArray(parsed.tickets)) {
+            parsed.tickets = [];
+          }
+          if (!parsed.adminPin) {
+            parsed.adminPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '123456';
           }
           this.memoryCache = parsed;
           return this.memoryCache!;
@@ -222,10 +95,7 @@ class P1MultiEventStore {
   // --- EVENTS ---
   public getEvents(): Event[] {
     const state = this.loadState();
-    if (!Array.isArray(state.events) || state.events.length === 0) {
-      return DEFAULT_EVENTS;
-    }
-    return state.events;
+    return Array.isArray(state.events) ? state.events : [];
   }
 
   public getEvent(idOrSlug: string): Event | undefined {
@@ -589,7 +459,8 @@ class P1MultiEventStore {
 
   // --- ADMIN AUTH & RESET ---
   public verifyAdminPin(pin: string): boolean {
-    return pin === this.loadState().adminPin || pin === '123456';
+    const configuredPin = process.env.NEXT_PUBLIC_ADMIN_PIN || '123456';
+    return pin === this.loadState().adminPin || pin === configuredPin;
   }
 
   public resetDatabase(): void {

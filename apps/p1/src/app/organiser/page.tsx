@@ -64,7 +64,11 @@ export default function P1AdminPanelPage() {
   const [copiedPhoto, setCopiedPhoto] = useState(false);
   const [sharingPhoto, setSharingPhoto] = useState(false);
 
-  // New Event Modal State
+  // Default clean neutral banner if organiser does not upload an image
+  const DEFAULT_EVENT_POSTER =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='600' viewBox='0 0 1200 600'%3E%3Cdefs%3E%3CradialGradient id='g' cx='50%25' cy='50%25' r='50%25'%3E%3Cstop offset='0%25' stop-color='%23FF6A1A' stop-opacity='0.3'/%3E%3Cstop offset='100%25' stop-color='%23121212' stop-opacity='1'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect fill='%23121212' width='1200' height='600'/%3E%3Crect fill='url(%23g)' width='1200' height='600'/%3E%3Ccircle cx='600' cy='300' r='100' fill='%23FF6A1A' fill-opacity='0.08' stroke='%23FF6A1A' stroke-width='2' stroke-opacity='0.2'/%3E%3Ctext x='50%25' y='50%25' fill='%23FFFFFF' fill-opacity='0.7' font-family='sans-serif' font-size='24' font-weight='600' text-anchor='middle' dy='.3em'%3ELIVE EXPERIENCE%3C/text%3E%3C/svg%3E";
+
+  // New Event Modal State - Clean blank initial state for production
   const [showAddEventModal, setShowAddEventModal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [newEvent, setNewEvent] = useState({
@@ -72,22 +76,22 @@ export default function P1AdminPanelPage() {
     tagline: '',
     description: '',
     category: 'MUSIC_FESTIVAL',
-    posterUrl: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=1200&q=80',
+    posterUrl: '',
     venueName: '',
     address: '',
-    city: 'Hyderabad',
+    city: '',
     googleMapsUrl: '',
-    startsAt: '2026-12-20T18:00',
-    endsAt: '2026-12-21T02:00',
+    startsAt: '',
+    endsAt: '',
     upiId: '',
     upiPayeeName: '',
     maxTicketsPerBooking: '6',
-    tier1Name: 'General Admission',
-    tier1Price: '1999',
-    tier1Capacity: '500',
-    tier2Name: 'VIP Pass',
-    tier2Price: '4999',
-    tier2Capacity: '100',
+    tier1Name: '',
+    tier1Price: '',
+    tier1Capacity: '',
+    tier2Name: '',
+    tier2Price: '',
+    tier2Capacity: '',
   });
   const [bannerPreview, setBannerPreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -106,7 +110,7 @@ export default function P1AdminPanelPage() {
     posterUrl: '',
     venueName: '',
     address: '',
-    city: 'Hyderabad',
+    city: '',
     googleMapsUrl: '',
     startsAt: '',
     endsAt: '',
@@ -321,72 +325,115 @@ export default function P1AdminPanelPage() {
       return;
     }
 
+    if (!newEvent.tier1Name.trim() || !newEvent.tier1Price.trim()) {
+      alert('Please specify at least Tier 1 name and ticket rate.');
+      return;
+    }
+
     const maxTix = Math.max(1, Number(newEvent.maxTicketsPerBooking) || 6);
+
+    const now = new Date();
+    const defaultStart = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const defaultEnd = new Date(defaultStart.getTime() + 4 * 60 * 60 * 1000);
+
+    let startsAtIso = defaultStart.toISOString();
+    let endsAtIso = defaultEnd.toISOString();
+    if (newEvent.startsAt) {
+      const parsed = new Date(newEvent.startsAt);
+      if (!isNaN(parsed.getTime())) startsAtIso = parsed.toISOString();
+    }
+    if (newEvent.endsAt) {
+      const parsed = new Date(newEvent.endsAt);
+      if (!isNaN(parsed.getTime())) endsAtIso = parsed.toISOString();
+    }
 
     const created = p1Storage.createEvent({
       organiserId: 'org-1',
-      title: newEvent.title,
+      title: newEvent.title.trim(),
       slug: newEvent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + `-${Date.now().toString(36).substring(2, 6)}`,
-      tagline: newEvent.tagline,
-      description: newEvent.description,
+      tagline: newEvent.tagline.trim(),
+      description: newEvent.description.trim() || newEvent.title.trim(),
       category: newEvent.category as any,
       status: 'PUBLISHED',
-      posterUrl: newEvent.posterUrl,
+      posterUrl: newEvent.posterUrl.trim() || DEFAULT_EVENT_POSTER,
       galleryUrls: [],
       upiId: newEvent.upiId.trim() || undefined,
       upiPayeeName: newEvent.upiPayeeName.trim() || undefined,
       maxTicketsPerBooking: maxTix,
       venue: {
-        name: newEvent.venueName,
-        address: newEvent.address,
-        city: newEvent.city,
-        state: 'Telangana',
-        postalCode: '500081',
+        name: newEvent.venueName.trim(),
+        address: newEvent.address.trim(),
+        city: newEvent.city.trim() || 'Venue',
+        state: '',
+        postalCode: '',
         country: 'India',
-        googleMapsUrl: newEvent.googleMapsUrl || `https://maps.google.com/?q=${encodeURIComponent(newEvent.venueName + ' ' + newEvent.city)}`,
+        googleMapsUrl: newEvent.googleMapsUrl.trim() || `https://maps.google.com/?q=${encodeURIComponent(newEvent.venueName.trim() + (newEvent.city.trim() ? ' ' + newEvent.city.trim() : ''))}`,
       },
       schedule: {
-        doorsOpenAt: newEvent.startsAt,
-        startsAt: new Date(newEvent.startsAt).toISOString(),
-        endsAt: new Date(newEvent.endsAt).toISOString(),
+        doorsOpenAt: startsAtIso,
+        startsAt: startsAtIso,
+        endsAt: endsAtIso,
         timezone: 'Asia/Kolkata',
       },
       isAgeRestricted: false,
       featured: true,
     });
 
-    if (newEvent.tier1Name && newEvent.tier1Price) {
+    if (newEvent.tier1Name.trim() && newEvent.tier1Price.trim()) {
       p1Storage.createTier({
         eventId: created.id,
-        name: newEvent.tier1Name,
+        name: newEvent.tier1Name.trim(),
         priceInPence: Math.round(Number(newEvent.tier1Price) * 100),
         currency: 'INR',
         capacity: Number(newEvent.tier1Capacity) || 500,
         minPerBooking: 1,
         maxPerBooking: maxTix,
         salesStartAt: new Date().toISOString(),
-        salesEndAt: new Date(newEvent.endsAt).toISOString(),
+        salesEndAt: endsAtIso,
         status: 'ACTIVE',
         perks: ['Standard Entry'],
       });
     }
 
-    if (newEvent.tier2Name && newEvent.tier2Price) {
+    if (newEvent.tier2Name.trim() && newEvent.tier2Price.trim()) {
       p1Storage.createTier({
         eventId: created.id,
-        name: newEvent.tier2Name,
+        name: newEvent.tier2Name.trim(),
         priceInPence: Math.round(Number(newEvent.tier2Price) * 100),
         currency: 'INR',
         capacity: Number(newEvent.tier2Capacity) || 100,
         minPerBooking: 1,
         maxPerBooking: maxTix,
         salesStartAt: new Date().toISOString(),
-        salesEndAt: new Date(newEvent.endsAt).toISOString(),
+        salesEndAt: endsAtIso,
         status: 'ACTIVE',
-        perks: ['VIP Lounge Access'],
+        perks: ['VIP Access'],
       });
     }
 
+    setNewEvent({
+      title: '',
+      tagline: '',
+      description: '',
+      category: 'MUSIC_FESTIVAL',
+      posterUrl: '',
+      venueName: '',
+      address: '',
+      city: '',
+      googleMapsUrl: '',
+      startsAt: '',
+      endsAt: '',
+      upiId: '',
+      upiPayeeName: '',
+      maxTicketsPerBooking: '6',
+      tier1Name: '',
+      tier1Price: '',
+      tier1Capacity: '',
+      tier2Name: '',
+      tier2Price: '',
+      tier2Capacity: '',
+    });
+    setBannerPreview('');
     setShowAddEventModal(false);
     loadAllData();
     alert('Event created and published successfully!');
@@ -509,8 +556,12 @@ export default function P1AdminPanelPage() {
       },
       schedule: {
         ...editingEvent.schedule,
-        startsAt: new Date(editForm.startsAt).toISOString(),
-        endsAt: new Date(editForm.endsAt).toISOString(),
+        startsAt: editForm.startsAt && !isNaN(new Date(editForm.startsAt).getTime())
+          ? new Date(editForm.startsAt).toISOString()
+          : editingEvent.schedule.startsAt,
+        endsAt: editForm.endsAt && !isNaN(new Date(editForm.endsAt).getTime())
+          ? new Date(editForm.endsAt).toISOString()
+          : editingEvent.schedule.endsAt,
       },
     });
 
@@ -821,7 +872,7 @@ export default function P1AdminPanelPage() {
             <GlassCard className="text-center py-10 space-y-2">
               <p className="text-xs text-white/50">No customer bookings yet.</p>
               <Link href="/" className="text-xs text-[#FF9A45] hover:underline">
-                Place a test booking on the events page
+                View live events page
               </Link>
             </GlassCard>
           ) : (
@@ -919,94 +970,112 @@ export default function P1AdminPanelPage() {
             </GlassButton>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {events.map((evt) => {
-              const eventTiers = tiers.filter((t) => t.eventId === evt.id);
+          {events.length === 0 ? (
+            <GlassCard className="text-center py-16 px-4 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/[0.1] mx-auto flex items-center justify-center text-[#FF9A45]">
+                <Calendar className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-semibold text-white">No Events in Catalog</h3>
+                <p className="text-xs text-white/50 max-w-sm mx-auto">
+                  Your event catalog is completely clean. Click below to add and publish your first live experience.
+                </p>
+              </div>
+              <GlassButton variant="primary" size="sm" onClick={() => setShowAddEventModal(true)}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                <span>Create First Event</span>
+              </GlassButton>
+            </GlassCard>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {events.map((evt) => {
+                const eventTiers = tiers.filter((t) => t.eventId === evt.id);
 
-              return (
-                <GlassCard key={evt.id} padding="none" className="flex flex-col text-xs">
-                  <div className="relative h-36 w-full overflow-hidden bg-neutral-900">
-                    <img src={evt.posterUrl} alt={evt.title} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent opacity-80" />
-                    <div className="absolute top-2.5 left-2.5">
-                      <GlassBadge variant="accent" size="sm">{evt.category.replace('_', ' ')}</GlassBadge>
+                return (
+                  <GlassCard key={evt.id} padding="none" className="flex flex-col text-xs">
+                    <div className="relative h-36 w-full overflow-hidden bg-neutral-900">
+                      <img src={evt.posterUrl} alt={evt.title} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#121212] via-transparent to-transparent opacity-80" />
+                      <div className="absolute top-2.5 left-2.5">
+                        <GlassBadge variant="accent" size="sm">{evt.category.replace('_', ' ')}</GlassBadge>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
-                    <div className="space-y-1.5">
-                      <h3 className="font-bold text-white text-sm line-clamp-1">{evt.title}</h3>
-                      <p className="text-white/60 line-clamp-1 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-[#FF9A45]" />
-                        <span>{evt.venue.name}, {evt.venue.city}</span>
-                      </p>
-                      <p className="text-white/40 flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>{new Date(evt.schedule.startsAt).toLocaleDateString()}</span>
-                      </p>
+                    <div className="p-4 space-y-3 flex-1 flex flex-col justify-between">
+                      <div className="space-y-1.5">
+                        <h3 className="font-bold text-white text-sm line-clamp-1">{evt.title}</h3>
+                        <p className="text-white/60 line-clamp-1 flex items-center gap-1">
+                          <MapPin className="w-3 h-3 text-[#FF9A45]" />
+                          <span>{evt.venue.name}, {evt.venue.city}</span>
+                        </p>
+                        <p className="text-white/40 flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{new Date(evt.schedule.startsAt).toLocaleDateString()}</span>
+                        </p>
 
-                      {/* Tiers summary */}
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {eventTiers.map((t) => (
-                          <span
-                            key={t.id}
-                            className="px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-[10px] text-white/70"
-                          >
-                            {t.name}: <span className="text-[#FF9A45] font-semibold">{formatINR(t.priceInPence)}</span>
+                        {/* Tiers summary */}
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {eventTiers.map((t) => (
+                            <span
+                              key={t.id}
+                              className="px-2 py-0.5 rounded bg-white/[0.04] border border-white/[0.08] text-[10px] text-white/70"
+                            >
+                              {t.name}: <span className="text-[#FF9A45] font-semibold">{formatINR(t.priceInPence)}</span>
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Event badges: UPI & Max Booking limit */}
+                        <div className="pt-0.5 flex flex-wrap gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
+                            <QrCode className="w-2.5 h-2.5 text-emerald-400" />
+                            <span>UPI: {evt.upiId || 'System Default'}</span>
                           </span>
-                        ))}
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FF6A1A]/10 border border-[#FF6A1A]/20 text-[10px] text-[#FF9A45] font-medium">
+                            <span>Max {evt.maxTicketsPerBooking || 6} tkts/booking</span>
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Event badges: UPI & Max Booking limit */}
-                      <div className="pt-0.5 flex flex-wrap gap-1.5">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-300 font-mono">
-                          <QrCode className="w-2.5 h-2.5 text-emerald-400" />
-                          <span>UPI: {evt.upiId || 'System Default'}</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FF6A1A]/10 border border-[#FF6A1A]/20 text-[10px] text-[#FF9A45] font-medium">
-                          <span>Max {evt.maxTicketsPerBooking || 6} tkts/booking</span>
-                        </span>
-                      </div>
-                    </div>
+                      <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {/* EDIT EVENT BUTTON */}
+                          <button
+                            onClick={() => openEditEvent(evt)}
+                            className="px-2.5 py-1 rounded-lg bg-[#FF6A1A]/15 hover:bg-[#FF6A1A]/25 border border-[#FF6A1A]/30 text-[#FF9A45] hover:text-white font-medium text-xs flex items-center gap-1 transition-all"
+                          >
+                            <Pencil className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
 
-                    <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {/* EDIT EVENT BUTTON */}
+                          <Link
+                            href={`/event/${evt.slug || evt.id}`}
+                            className="text-white/60 hover:text-white flex items-center gap-1 text-xs"
+                          >
+                            <span>Preview</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </Link>
+                        </div>
+
                         <button
-                          onClick={() => openEditEvent(evt)}
-                          className="px-2.5 py-1 rounded-lg bg-[#FF6A1A]/15 hover:bg-[#FF6A1A]/25 border border-[#FF6A1A]/30 text-[#FF9A45] hover:text-white font-medium text-xs flex items-center gap-1 transition-all"
+                          onClick={() => {
+                            if (confirm(`Delete event "${evt.title}"?`)) {
+                              p1Storage.deleteEvent(evt.id);
+                              loadAllData();
+                            }
+                          }}
+                          className="text-white/40 hover:text-red-400 p-1 transition-colors"
+                          title="Delete Event"
                         >
-                          <Pencil className="w-3 h-3" />
-                          <span>Edit</span>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-
-                        <Link
-                          href={`/event/${evt.slug || evt.id}`}
-                          className="text-white/60 hover:text-white flex items-center gap-1 text-xs"
-                        >
-                          <span>Preview</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </Link>
                       </div>
-
-                      <button
-                        onClick={() => {
-                          if (confirm(`Delete event "${evt.title}"?`)) {
-                            p1Storage.deleteEvent(evt.id);
-                            loadAllData();
-                          }
-                        }}
-                        className="text-white/40 hover:text-red-400 p-1 transition-colors"
-                        title="Delete Event"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
+                  </GlassCard>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1668,14 +1737,14 @@ export default function P1AdminPanelPage() {
               <div className="grid grid-cols-2 gap-2">
                 <GlassInput
                   label="Venue Name"
-                  placeholder="e.g. GMR Arena Grounds"
+                  placeholder="e.g. Main Auditorium / Convention Centre"
                   value={editForm.venueName}
                   onChange={(e) => setEditForm({ ...editForm, venueName: e.target.value })}
                   required
                 />
                 <GlassInput
                   label="City"
-                  placeholder="Hyderabad"
+                  placeholder="e.g. Mumbai, Bengaluru, Goa"
                   value={editForm.city}
                   onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
                   required
@@ -1722,14 +1791,14 @@ export default function P1AdminPanelPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <GlassInput
                     label="Event UPI ID / VPA"
-                    placeholder="e.g. solaris.festival@okhdfcbank"
+                    placeholder="e.g. organiser@okhdfcbank or business@upi"
                     value={editForm.upiId}
                     onChange={(e) => setEditForm({ ...editForm, upiId: e.target.value })}
                     helperText="Leave blank for system default UPI"
                   />
                   <GlassInput
                     label="Payee / Merchant Name"
-                    placeholder="e.g. SOLARIS FESTIVAL"
+                    placeholder="e.g. Event Productions / Brand Name"
                     value={editForm.upiPayeeName}
                     onChange={(e) => setEditForm({ ...editForm, upiPayeeName: e.target.value })}
                     helperText="Name displayed in UPI payment apps"
@@ -1892,7 +1961,7 @@ export default function P1AdminPanelPage() {
               {/* Title & Tagline */}
               <GlassInput
                 label="Event Title"
-                placeholder="e.g. Neon Horizon Festival"
+                placeholder="e.g. Annual Music Fest / Tech Summit"
                 value={newEvent.title}
                 onChange={(e) => setNewEvent({ ...newEvent, title: e.target.value })}
                 required
@@ -1900,7 +1969,7 @@ export default function P1AdminPanelPage() {
 
               <GlassInput
                 label="Tagline"
-                placeholder="Short captivating description"
+                placeholder="Short captivating tagline"
                 value={newEvent.tagline}
                 onChange={(e) => setNewEvent({ ...newEvent, tagline: e.target.value })}
               />
@@ -1927,14 +1996,14 @@ export default function P1AdminPanelPage() {
               <div className="grid grid-cols-2 gap-2">
                 <GlassInput
                   label="Venue Name"
-                  placeholder="e.g. HITEX Arena"
+                  placeholder="e.g. Main Auditorium / Convention Centre"
                   value={newEvent.venueName}
                   onChange={(e) => setNewEvent({ ...newEvent, venueName: e.target.value })}
                   required
                 />
                 <GlassInput
                   label="City"
-                  placeholder="Hyderabad"
+                  placeholder="e.g. Mumbai, Bengaluru, Goa"
                   value={newEvent.city}
                   onChange={(e) => setNewEvent({ ...newEvent, city: e.target.value })}
                   required
@@ -1974,14 +2043,14 @@ export default function P1AdminPanelPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   <GlassInput
                     label="Event UPI ID / VPA"
-                    placeholder="e.g. eventorganizer@oksbi"
+                    placeholder="e.g. organiser@okhdfcbank or business@upi"
                     value={newEvent.upiId}
                     onChange={(e) => setNewEvent({ ...newEvent, upiId: e.target.value })}
                     helperText="Leave blank for system default UPI"
                   />
                   <GlassInput
                     label="Payee / Merchant Name"
-                    placeholder="e.g. Event Productions"
+                    placeholder="e.g. Event Productions / Brand Name"
                     value={newEvent.upiPayeeName}
                     onChange={(e) => setNewEvent({ ...newEvent, upiPayeeName: e.target.value })}
                     helperText="Name displayed in UPI payment apps"
@@ -1997,18 +2066,21 @@ export default function P1AdminPanelPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <GlassInput
                     label="Tier 1 Name"
+                    placeholder="e.g. General Admission"
                     value={newEvent.tier1Name}
                     onChange={(e) => setNewEvent({ ...newEvent, tier1Name: e.target.value })}
                   />
                   <GlassInput
                     label="Rate (₹)"
                     type="number"
+                    placeholder="e.g. 999"
                     value={newEvent.tier1Price}
                     onChange={(e) => setNewEvent({ ...newEvent, tier1Price: e.target.value })}
                   />
                   <GlassInput
                     label="Capacity"
                     type="number"
+                    placeholder="e.g. 500"
                     value={newEvent.tier1Capacity}
                     onChange={(e) => setNewEvent({ ...newEvent, tier1Capacity: e.target.value })}
                   />
@@ -2017,18 +2089,21 @@ export default function P1AdminPanelPage() {
                 <div className="grid grid-cols-3 gap-2">
                   <GlassInput
                     label="Tier 2 Name"
+                    placeholder="e.g. VIP Pass (Optional)"
                     value={newEvent.tier2Name}
                     onChange={(e) => setNewEvent({ ...newEvent, tier2Name: e.target.value })}
                   />
                   <GlassInput
                     label="Rate (₹)"
                     type="number"
+                    placeholder="e.g. 2499"
                     value={newEvent.tier2Price}
                     onChange={(e) => setNewEvent({ ...newEvent, tier2Price: e.target.value })}
                   />
                   <GlassInput
                     label="Capacity"
                     type="number"
+                    placeholder="e.g. 100"
                     value={newEvent.tier2Capacity}
                     onChange={(e) => setNewEvent({ ...newEvent, tier2Capacity: e.target.value })}
                   />
