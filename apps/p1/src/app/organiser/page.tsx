@@ -1127,9 +1127,6 @@ export default function P1AdminPanelPage() {
                               <span>WA: {evt.whatsappPhone}</span>
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#FF6A1A]/10 border border-[#FF6A1A]/20 text-[10px] text-[#FF9A45] font-medium">
-                            <span>Max {evt.maxTicketsPerBooking || 6} tkts/booking</span>
-                          </span>
                         </div>
                       </div>
 
@@ -1904,19 +1901,6 @@ export default function P1AdminPanelPage() {
                 helperText="Redirects attendees directly to Google Maps navigation"
               />
 
-              {/* Max Tickets per Booking / Transaction */}
-              <GlassInput
-                label="Max Tickets Per Transaction / Booking"
-                type="number"
-                min="1"
-                max="50"
-                placeholder="e.g. 6"
-                value={editForm.maxTicketsPerBooking}
-                onChange={(e) => setEditForm({ ...editForm, maxTicketsPerBooking: e.target.value })}
-                helperText="Maximum total tickets a customer can book in a single transaction (default: 6)"
-                required
-              />
-
               {/* Event UPI Payment & WhatsApp Redirection Config */}
               <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.08] space-y-2.5">
                 <div className="flex items-center gap-2 text-white font-semibold text-xs">
@@ -2195,19 +2179,6 @@ export default function P1AdminPanelPage() {
                 value={newEvent.googleMapsUrl}
                 onChange={(e) => setNewEvent({ ...newEvent, googleMapsUrl: e.target.value })}
                 helperText="Redirects customer directly to Google Maps pin"
-              />
-
-              {/* Max Tickets per Booking / Transaction */}
-              <GlassInput
-                label="Max Tickets Per Transaction / Booking"
-                type="number"
-                min="1"
-                max="50"
-                placeholder="e.g. 6"
-                value={newEvent.maxTicketsPerBooking}
-                onChange={(e) => setNewEvent({ ...newEvent, maxTicketsPerBooking: e.target.value })}
-                helperText="Maximum total tickets a customer can book in a single transaction (default: 6)"
-                required
               />
 
               {/* Event UPI Payment & WhatsApp Redirection Config */}

@@ -52,18 +52,10 @@ export default function P1EventDetailPage() {
     }
   }, [idOrSlug]);
 
-  const maxEventLimit = event?.maxTicketsPerBooking || 6;
-
   const updateQty = (tierId: string, delta: number, maxTier: number) => {
     const cur = quantities[tierId] || 0;
-    const currentTotal = Object.values(quantities).reduce((a, b) => a + b, 0);
-
-    if (delta > 0 && currentTotal >= maxEventLimit) {
-      setError(`Maximum ${maxEventLimit} tickets allowed per transaction for this event.`);
-      return;
-    }
     setError(null);
-    const next = Math.max(0, Math.min(Math.min(maxTier, maxEventLimit), cur + delta));
+    const next = Math.max(0, Math.min(maxTier, cur + delta));
     setQuantities((prev) => ({ ...prev, [tierId]: next }));
   };
 
@@ -79,10 +71,6 @@ export default function P1EventDetailPage() {
 
     if (totalTickets === 0) {
       setError('Please select at least 1 ticket to book.');
-      return;
-    }
-    if (totalTickets > maxEventLimit) {
-      setError(`You can only book up to ${maxEventLimit} tickets in a single transaction.`);
       return;
     }
     if (!customer.fullName.trim()) {
@@ -257,9 +245,6 @@ export default function P1EventDetailPage() {
                   <Sparkles className="w-4 h-4 text-[#FF9A45]" />
                   <span>Select Tickets</span>
                 </h3>
-                <span className="text-[10px] text-[#FF9A45] font-semibold bg-[#FF6A1A]/10 border border-[#FF6A1A]/20 px-2 py-0.5 rounded-md">
-                  Max {maxEventLimit} per transaction
-                </span>
               </div>
 
               {/* Tiers List */}
@@ -298,8 +283,8 @@ export default function P1EventDetailPage() {
                             <span className="text-xs font-semibold text-white w-4 text-center">{qty}</span>
                             <button
                               type="button"
-                              onClick={() => updateQty(t.id, 1, Math.min(t.maxPerBooking, available))}
-                              disabled={qty >= t.maxPerBooking || qty >= available || totalTickets >= maxEventLimit}
+                              onClick={() => updateQty(t.id, 1, available)}
+                              disabled={qty >= available}
                               className="w-6 h-6 flex items-center justify-center rounded bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs disabled:opacity-30"
                             >
                               <Plus className="w-3 h-3" />
@@ -321,12 +306,6 @@ export default function P1EventDetailPage() {
                     </div>
                   );
                 })}
-
-                {totalTickets >= maxEventLimit && (
-                  <p className="text-[11px] text-[#FF9A45] text-center font-medium bg-[#FF6A1A]/10 py-1.5 px-3 rounded-lg border border-[#FF6A1A]/20">
-                    Maximum limit reached: You can book up to {maxEventLimit} tickets per transaction.
-                  </p>
-                )}
               </div>
 
               {/* Customer Contact Info: NAME AND MOBILE ONLY (NO EMAIL) */}

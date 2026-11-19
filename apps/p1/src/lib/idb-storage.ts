@@ -246,10 +246,9 @@ class P1MultiEventStore {
     const event = state.events.find((e) => e.id === params.eventId);
     if (!event) return { success: false, error: 'Event not found.' };
 
-    const maxAllowed = event.maxTicketsPerBooking || 6;
     const totalQuantity = params.items.reduce((sum, item) => sum + item.quantity, 0);
-    if (totalQuantity > maxAllowed) {
-      return { success: false, error: `You can only book up to ${maxAllowed} tickets per transaction.` };
+    if (totalQuantity <= 0) {
+      return { success: false, error: 'Please select at least 1 ticket.' };
     }
 
     let subtotalInPence = 0;
