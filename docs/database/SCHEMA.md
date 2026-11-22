@@ -91,3 +91,4 @@ Cryptographic digital passes issued upon verified payment.
 - `security_token` (VARCHAR(64), nonce rotated upon ticket reissue)
 - `status` ('ISSUED', 'CHECKED_IN', 'REVOKED', 'TRANSFERRED')
 - `checked_in_at` (TIMESTAMPTZ), `checked_in_by` (UUID)
+

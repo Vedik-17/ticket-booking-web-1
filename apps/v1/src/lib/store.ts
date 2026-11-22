@@ -543,3 +543,4 @@ class FireflyDataStore {
 
 // Global Singleton Store Instance
 export const db = new FireflyDataStore();
+

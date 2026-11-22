@@ -31,3 +31,4 @@ Where:
 1. **Public/Guest:** Can query published events, inspect tiers, create temporary inventory holds, and view confirmed tickets via direct booking token.
 2. **Organiser:** Can create/update only their own events, manage own ticket tiers, launch gate scanner for their own events, and review revenue reports for their own tenant.
 3. **Admin:** Elevated privileges to suspend/reactivate organisers, moderate events platform-wide, and review aggregated financial volume.
+

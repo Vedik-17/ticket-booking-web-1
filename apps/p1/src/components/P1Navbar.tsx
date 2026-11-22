@@ -65,15 +65,11 @@ export const P1Navbar = () => {
           </div>
           <span className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
             FIREFLY
-            <span
-              className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full transition-colors ${
-                isSecretUnlocking
-                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                  : 'bg-[#FF6A1A]/15 text-[#FF9A45] border border-[#FF6A1A]/30'
-              }`}
-            >
-              {isSecretUnlocking ? 'UNLOCKING...' : 'P1 PROTOTYPE'}
-            </span>
+            {isSecretUnlocking && (
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full transition-colors bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                UNLOCKING...
+              </span>
+            )}
           </span>
         </Link>
 

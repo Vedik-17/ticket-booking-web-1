@@ -27,46 +27,101 @@ export default function P1TicketPassPage() {
   const params = useParams();
   const ticketId = params?.id as string;
 
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [event, setEvent] = useState<Event | null>(null);
-  const [booking, setBooking] = useState<Booking | null>(null);
+  const [ticket, setTicket] = useState<Ticket | null>(() => (ticketId ? p1Storage.getTicket(ticketId) || null : null));
+  const [event, setEvent] = useState<Event | null>(() => {
+    if (ticketId) {
+      const t = p1Storage.getTicket(ticketId);
+      return t ? p1Storage.getEvent(t.eventId) || null : null;
+    }
+    return null;
+  });
+  const [booking, setBooking] = useState<Booking | null>(() => {
+    if (ticketId) {
+      const t = p1Storage.getTicket(ticketId);
+      return t ? p1Storage.getBooking(t.bookingId) || null : null;
+    }
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(() => !p1Storage.getTicket(ticketId));
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
   useEffect(() => {
-    const t = p1Storage.getTicket(ticketId);
-    if (t) {
-      setTicket(t);
-      const e = p1Storage.getEvent(t.eventId);
-      if (e) setEvent(e);
-      const b = p1Storage.getBooking(t.bookingId);
-      if (b) setBooking(b);
+    if (!ticketId) return;
 
-      QRCode.toDataURL(t.qrPayload, {
-        width: 320,
-        margin: 2,
-        color: { dark: '#080808', light: '#FFFFFF' },
-        errorCorrectionLevel: 'H',
-      }).then(setQrDataUrl);
-    }
+    const loadTicketData = () => {
+      const t = p1Storage.getTicket(ticketId);
+      if (t) {
+        setTicket(t);
+        const e = p1Storage.getEvent(t.eventId);
+        if (e) setEvent(e);
+        const b = p1Storage.getBooking(t.bookingId);
+        if (b) setBooking(b);
+
+        QRCode.toDataURL(t.qrPayload, {
+          width: 320,
+          margin: 2,
+          color: { dark: '#080808', light: '#FFFFFF' },
+          errorCorrectionLevel: 'H',
+        }).then(setQrDataUrl);
+        setIsLoading(false);
+      }
+    };
+
+    loadTicketData();
+    const unsubscribe = p1Storage.subscribe(loadTicketData);
+    p1Storage.syncWithServer().finally(() => {
+      loadTicketData();
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [ticketId]);
 
-  if (!ticket || !event) {
+  if (isLoading && !ticket) {
+    return (
+      <div className="py-20 text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-white/50">Loading ticket pass...</p>
+      </div>
+    );
+  }
+
+  if (!ticket) {
     return (
       <div className="py-20 text-center space-y-4">
         <h2 className="text-xl font-bold text-white">Ticket Not Found</h2>
         <Link href="/">
-          <GlassButton variant="secondary">Back to Event</GlassButton>
+          <GlassButton variant="secondary">Back to Events</GlassButton>
         </Link>
       </div>
     );
   }
 
-  const startDate = new Date(event.schedule.startsAt).toLocaleDateString('en-US', {
+  const displayEvent: Event = event || {
+    id: ticket.eventId,
+    organiserId: 'org-1',
+    title: 'Live Event Pass',
+    slug: 'event',
+    tagline: '',
+    description: '',
+    category: 'MUSIC_FESTIVAL',
+    status: 'PUBLISHED',
+    posterUrl: '',
+    galleryUrls: [],
+    venue: { name: 'Event Grounds', city: 'Venue', address: '', state: '', postalCode: '', country: 'India', googleMapsUrl: '' },
+    schedule: { startsAt: ticket.createdAt, endsAt: ticket.createdAt, timezone: 'Asia/Kolkata' },
+    isAgeRestricted: false,
+    featured: true,
+    createdAt: ticket.createdAt,
+    updatedAt: ticket.createdAt,
+  };
+
+  const startDate = new Date(displayEvent.schedule.startsAt).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   });
-  const startTime = new Date(event.schedule.startsAt).toLocaleTimeString('en-US', {
+  const startTime = new Date(displayEvent.schedule.startsAt).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -75,12 +130,12 @@ export default function P1TicketPassPage() {
   const ticketUrl = `${origin}/ticket/${ticket.id}`;
   const fullPreloadedWhatsAppText =
     `Hello ${ticket.attendeeName}!\n\n` +
-    `Your digital ticket pass for "${event.title}" is confirmed!\n\n` +
+    `Your digital ticket pass for "${displayEvent.title}" is confirmed!\n\n` +
     `• Ticket No: ${ticket.ticketNumber}\n` +
     `• Tier: ${ticket.tierName}\n` +
     `• Attendee: ${ticket.attendeeName}\n` +
     `• Date: ${startDate} • ${startTime}\n` +
-    `• Venue: ${event.venue.name}, ${event.venue.city}\n\n` +
+    `• Venue: ${displayEvent.venue.name}, ${displayEvent.venue.city}\n\n` +
     `Access your official QR entrance pass here:\n${ticketUrl}\n\n` +
     `Please have this QR code ready for gate scanning at the venue.`;
 
@@ -90,13 +145,13 @@ export default function P1TicketPassPage() {
     : `https://api.whatsapp.com/send?text=${encodeURIComponent(fullPreloadedWhatsAppText)}`;
 
   const handleDownloadPhoto = async () => {
-    if (!ticket || !event) return;
+    if (!ticket) return;
     const cardUrl = await generateTicketCardDataUrl({
-      eventTitle: event.title,
+      eventTitle: displayEvent.title,
       attendeeName: ticket.attendeeName,
       tierName: ticket.tierName,
       ticketNumber: ticket.ticketNumber,
-      venueName: event.venue.name,
+      venueName: displayEvent.venue.name,
       dateStr: startDate,
       qrPayload: ticket.qrPayload,
     });
@@ -125,7 +180,7 @@ export default function P1TicketPassPage() {
       {/* Ticket Pass Card */}
       <GlassCard padding="none" className="relative shadow-2xl overflow-hidden print:border-black">
         <div className="relative h-28 bg-neutral-900 overflow-hidden">
-          <img src={event.posterUrl} alt={event.title} className="w-full h-full object-cover opacity-60" />
+          <img src={displayEvent.posterUrl || '/placeholder.jpg'} alt={displayEvent.title} className="w-full h-full object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/50 to-transparent" />
           <div className="absolute top-3 left-4 right-4 flex items-center justify-between">
             <span className="text-[10px] tracking-widest font-mono font-bold text-white/80 uppercase">FIREFLY PASS</span>
@@ -134,7 +189,7 @@ export default function P1TicketPassPage() {
             </GlassBadge>
           </div>
           <div className="absolute bottom-2.5 left-4 right-4">
-            <h2 className="text-base font-bold text-white truncate">{event.title}</h2>
+            <h2 className="text-base font-bold text-white truncate">{displayEvent.title}</h2>
           </div>
         </div>
 
@@ -175,7 +230,7 @@ export default function P1TicketPassPage() {
             </div>
             <div>
               <span className="text-[10px] text-white/40 uppercase block">Venue</span>
-              <span className="font-medium text-white truncate block">{event.venue.name}</span>
+              <span className="font-medium text-white truncate block">{displayEvent.venue.name}</span>
             </div>
           </div>
 
@@ -216,12 +271,12 @@ export default function P1TicketPassPage() {
           </GlassButton>
         </div>
 
-        {event.whatsappPhone && (
+        {displayEvent.whatsappPhone && (
           <div className="text-center pt-2">
             <a
               href={buildWhatsAppLink(
-                event.whatsappPhone,
-                `Hi, I have a query regarding my ticket ${ticket.ticketNumber} for "${event.title}".`
+                displayEvent.whatsappPhone,
+                `Hi, I have a query regarding my ticket ${ticket.ticketNumber} for "${displayEvent.title}".`
               )}
               target="_blank"
               rel="noopener noreferrer"

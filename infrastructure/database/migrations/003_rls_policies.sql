@@ -166,3 +166,4 @@ CREATE POLICY "Only admins can view audit logs"
 CREATE POLICY "System can append audit logs"
     ON audit_logs FOR INSERT
     WITH CHECK (TRUE);
+

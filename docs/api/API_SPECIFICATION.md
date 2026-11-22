@@ -121,3 +121,4 @@ Atomic scan verification across multiple entrance gates.
   - `SUCCESS`: `{ "status": "SUCCESS", "message": "Ticket successfully verified. Access Granted." }`
   - `DUPLICATE`: `{ "status": "ALREADY_CHECKED_IN", "message": "DUPLICATE ENTRY DETECTED! Already admitted at 19:42." }`
   - `MISMATCH`: `{ "status": "EVENT_MISMATCH", "message": "Ticket belongs to a different event." }`
+

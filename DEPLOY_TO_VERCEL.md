@@ -53,3 +53,4 @@ If your repository is on GitHub:
 - **Secret Organiser Admin Panel:** Triple-tap the FIREFLY logo on the top navbar (Passcode: `CF2026`)
 - **Direct UPI Mobile Deep Links:** Works natively on iOS & Android devices.
 - **Offline Camera Gate Scanner:** Works over HTTPS in all mobile browsers.
+

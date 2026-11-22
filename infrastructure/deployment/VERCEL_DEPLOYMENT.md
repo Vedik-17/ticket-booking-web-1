@@ -43,3 +43,4 @@ Configure the following environment variables in the Vercel Dashboard under **Se
 3. Run `infrastructure/database/migrations/002_functions_and_triggers.sql`.
 4. Run `infrastructure/database/migrations/003_rls_policies.sql`.
 5. (Optional) Run `infrastructure/database/seeds/001_demo_seed.sql` to populate sample live events and demo organizer accounts.
+

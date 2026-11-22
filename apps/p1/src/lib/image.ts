@@ -6,9 +6,9 @@ import QRCode from 'qrcode';
  */
 export async function compressImageToDataUrl(
   file: File,
-  maxWidth = 1200,
-  maxHeight = 800,
-  quality = 0.82
+  maxWidth = 1000,
+  maxHeight = 650,
+  quality = 0.78
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

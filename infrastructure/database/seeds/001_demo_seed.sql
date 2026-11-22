@@ -121,3 +121,4 @@ VALUES
         ARRAY['All Exhibition Halls Access', 'Digital Audio Guide Link']
     )
 ON CONFLICT (id) DO NOTHING;
+

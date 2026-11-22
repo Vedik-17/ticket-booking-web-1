@@ -20,12 +20,25 @@ import { p1Storage } from '@/lib/idb-storage';
 export default function P1EventsDashboardPage() {
   const [events, setEvents] = useState<Event[]>(() => p1Storage.getEvents());
   const [tiers, setTiers] = useState<TicketTier[]>(() => p1Storage.getTiers());
+  const [isLoading, setIsLoading] = useState(() => p1Storage.getEvents().length === 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   useEffect(() => {
-    setEvents(p1Storage.getEvents());
-    setTiers(p1Storage.getTiers());
+    const updateData = () => {
+      const liveEvents = p1Storage.getEvents();
+      setEvents(liveEvents);
+      setTiers(p1Storage.getTiers());
+      setIsLoading(false);
+    };
+
+    updateData();
+    const unsubscribe = p1Storage.subscribe(updateData);
+    p1Storage.syncWithServer().finally(() => {
+      updateData();
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const getStartingPrice = (eventId: string) => {
@@ -111,7 +124,12 @@ export default function P1EventsDashboardPage() {
           </h2>
         </div>
 
-        {events.length === 0 ? (
+        {isLoading && events.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="h-72 rounded-2xl bg-white/[0.03] animate-pulse border border-white/[0.06]" />
+            <div className="h-72 rounded-2xl bg-white/[0.03] animate-pulse border border-white/[0.06]" />
+          </div>
+        ) : events.length === 0 ? (
           <GlassCard className="text-center py-16 px-4 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-white/[0.05] border border-white/[0.10] mx-auto flex items-center justify-center text-[#FF9A45]">
               <Calendar className="w-6 h-6" />

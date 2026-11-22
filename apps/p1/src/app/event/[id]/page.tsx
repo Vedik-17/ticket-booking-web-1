@@ -28,8 +28,15 @@ export default function P1EventDetailPage() {
   const router = useRouter();
   const idOrSlug = params?.id as string;
 
-  const [event, setEvent] = useState<Event | null>(null);
-  const [tiers, setTiers] = useState<TicketTier[]>([]);
+  const [event, setEvent] = useState<Event | null>(() => (idOrSlug ? p1Storage.getEvent(idOrSlug) || null : null));
+  const [tiers, setTiers] = useState<TicketTier[]>(() => {
+    if (idOrSlug) {
+      const evt = p1Storage.getEvent(idOrSlug);
+      return evt ? p1Storage.getTiers(evt.id) : [];
+    }
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState(() => !p1Storage.getEvent(idOrSlug));
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [customer, setCustomer] = useState({
     fullName: '',
@@ -39,17 +46,32 @@ export default function P1EventDetailPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (idOrSlug) {
+    if (!idOrSlug) return;
+
+    const loadEventData = () => {
       const evt = p1Storage.getEvent(idOrSlug);
       if (evt) {
         setEvent(evt);
         const t = p1Storage.getTiers(evt.id);
         setTiers(t);
-        if (t.length > 0) {
-          setQuantities({ [t[0].id]: 1 });
-        }
+        setQuantities((prev) => {
+          if (Object.keys(prev).length === 0 && t.length > 0) {
+            return { [t[0].id]: 1 };
+          }
+          return prev;
+        });
+        setIsLoading(false);
       }
-    }
+    };
+
+    loadEventData();
+    const unsubscribe = p1Storage.subscribe(loadEventData);
+    p1Storage.syncWithServer().finally(() => {
+      loadEventData();
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [idOrSlug]);
 
   const updateQty = (tierId: string, delta: number, maxTier: number) => {
@@ -106,6 +128,15 @@ export default function P1EventDetailPage() {
       setSubmitting(false);
     }
   };
+
+  if (isLoading && !event) {
+    return (
+      <div className="py-20 text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-white/50">Loading event details...</p>
+      </div>
+    );
+  }
 
   if (!event) {
     return (

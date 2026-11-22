@@ -81,3 +81,4 @@ stateDiagram-v2
    ```
 2. **Server-Side Nonce Check:** Every check-in request verifies the nonce and compares it to the live database record. Reissuing a ticket rotates the nonce, instantly invalidating leaked screenshots or duplicates.
 3. **Atomic Gate Validation:** Multi-entrance scanning runs through the database function `atomic_check_in`, which acquires an exclusive row lock (`FOR UPDATE`) on the ticket, ensuring that two guests attempting simultaneous entry with copies of the same ticket will result in exactly one admittance and one immediate `DUPLICATE` rejection.
+

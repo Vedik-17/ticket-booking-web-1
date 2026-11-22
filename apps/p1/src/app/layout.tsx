@@ -3,8 +3,8 @@ import './globals.css';
 import { P1Navbar } from '@/components/P1Navbar';
 
 export const metadata: Metadata = {
-  title: 'FIREFLY P1 — Rapid Event Ticketing Prototype',
-  description: 'Single-event ticketing with direct UPI payments, WhatsApp support, and local gate scanner.',
+  title: 'FIREFLY — Live Experiences & Direct UPI Event Ticketing',
+  description: 'Live experience ticketing with direct UPI payments, WhatsApp QR passes, and instant gate scanner.',
 };
 
 export default function RootLayout({

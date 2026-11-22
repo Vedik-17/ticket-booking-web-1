@@ -36,7 +36,7 @@ import {
 import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
 import { Booking, Event, TicketTier, Ticket, CheckInResponse } from '@firefly/shared-types';
 import { formatINR } from '@firefly/core';
-import { p1Storage } from '@/lib/idb-storage';
+import { p1Storage, GateScanInspection } from '@/lib/idb-storage';
 import {
   compressImageToDataUrl,
   generateTicketCardDataUrl,
@@ -59,6 +59,8 @@ export default function P1AdminPanelPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [tiers, setTiers] = useState<TicketTier[]>([]);
   const [allTickets, setAllTickets] = useState<Ticket[]>([]);
+  const [bookingFilter, setBookingFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED'>('ALL');
+  const [deletingBookingId, setDeletingBookingId] = useState<string | null>(null);
 
   // Recently confirmed ticket modal/drawer
   const [confirmedModal, setConfirmedModal] = useState<{
@@ -103,6 +105,7 @@ export default function P1AdminPanelPage() {
   const [bannerPreview, setBannerPreview] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [isSavingEvent, setIsSavingEvent] = useState(false);
 
   // Edit Event Modal State
   const [showEditModal, setShowEditModal] = useState(false);
@@ -148,6 +151,15 @@ export default function P1AdminPanelPage() {
   const [showFlagGuide, setShowFlagGuide] = useState(false);
   const [copiedOrigin, setCopiedOrigin] = useState(false);
 
+  // BookMyShow-style Gate Admission State
+  const [gateModal, setGateModal] = useState<GateScanInspection | null>(null);
+  const [isAdmitting, setIsAdmitting] = useState(false);
+  const [admitSuccess, setAdmitSuccess] = useState(false);
+  const gateModalOpenRef = useRef(false);
+  useEffect(() => {
+    gateModalOpenRef.current = gateModal !== null;
+  }, [gateModal]);
+
   const scannerRef = useRef<any>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
@@ -179,6 +191,14 @@ export default function P1AdminPanelPage() {
   useEffect(() => {
     const loadedEvents = loadAllData();
 
+    const unsubscribe = p1Storage.subscribe(() => {
+      loadAllData();
+    });
+
+    p1Storage.syncWithServer().then(() => {
+      loadAllData();
+    });
+
     // Check if URL has ?edit=<eventId>
     if (typeof window !== 'undefined') {
       const urlParams = new URLSearchParams(window.location.search);
@@ -191,6 +211,8 @@ export default function P1AdminPanelPage() {
         }
       }
     }
+
+    return () => unsubscribe();
   }, [isAuthenticated]);
 
   // Clean up camera scanner when leaving scanner tab or unmounting
@@ -246,6 +268,26 @@ export default function P1AdminPanelPage() {
         qrDataUrls: res.qrDataUrls || [],
         passCardUrls: cards,
       });
+    }
+  };
+
+  // Delete & revoke booking (both confirmed and pending to prevent fraud)
+  const handleDeleteBooking = async (b: Booking) => {
+    const isConfirmed = b.status === 'CONFIRMED';
+    const confirmMsg = isConfirmed
+      ? `Are you sure you want to delete and revoke confirmed booking ${b.bookingReference} for "${b.customer.fullName}"?\n\n⚠️ WARNING: This will permanently delete the booking and immediately INVALIDATE all associated QR passes at the gate to prevent fraudulent entry.`
+      : `Are you sure you want to delete pending booking ${b.bookingReference} for "${b.customer.fullName}"?`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setDeletingBookingId(b.id);
+    try {
+      await p1Storage.deleteBooking(b.id);
+      loadAllData();
+    } catch (err: any) {
+      alert('Failed to delete booking: ' + err.message);
+    } finally {
+      setDeletingBookingId(null);
     }
   };
 
@@ -380,7 +422,7 @@ export default function P1AdminPanelPage() {
   };
 
   // Create Event Form Submit
-  const handleCreateEvent = (e: React.FormEvent) => {
+  const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEvent.title.trim() || !newEvent.venueName.trim()) {
       alert('Please fill in title and venue');
@@ -414,43 +456,11 @@ export default function P1AdminPanelPage() {
     const startsAtIso = finalStart.toISOString();
     const endsAtIso = finalEnd.toISOString();
 
-    const created = p1Storage.createEvent({
-      organiserId: 'org-1',
-      title: newEvent.title.trim(),
-      slug: newEvent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + `-${Date.now().toString(36).substring(2, 6)}`,
-      tagline: newEvent.tagline.trim(),
-      description: newEvent.description.trim() || newEvent.title.trim(),
-      category: newEvent.category as any,
-      status: 'PUBLISHED',
-      posterUrl: newEvent.posterUrl.trim() || DEFAULT_EVENT_POSTER,
-      galleryUrls: [],
-      upiId: newEvent.upiId.trim() || undefined,
-      upiPayeeName: newEvent.upiPayeeName.trim() || undefined,
-      whatsappPhone: newEvent.whatsappPhone.trim() || undefined,
-      maxTicketsPerBooking: maxTix,
-      venue: {
-        name: newEvent.venueName.trim(),
-        address: newEvent.address.trim(),
-        city: newEvent.city.trim() || 'Venue',
-        state: '',
-        postalCode: '',
-        country: 'India',
-        googleMapsUrl: newEvent.googleMapsUrl.trim() || `https://maps.google.com/?q=${encodeURIComponent(newEvent.venueName.trim() + (newEvent.city.trim() ? ' ' + newEvent.city.trim() : ''))}`,
-      },
-      schedule: {
-        doorsOpenAt: startsAtIso,
-        startsAt: startsAtIso,
-        endsAt: endsAtIso,
-        timezone: 'Asia/Kolkata',
-      },
-      isAgeRestricted: false,
-      featured: true,
-    });
-
+    const tiersToCreate: Array<any> = [];
     if (newEvent.tier1Name.trim() && newEvent.tier1Price.trim()) {
-      p1Storage.createTier({
-        eventId: created.id,
+      tiersToCreate.push({
         name: newEvent.tier1Name.trim(),
+        description: 'Standard Entry',
         priceInPence: Math.round(Number(newEvent.tier1Price) * 100),
         currency: 'INR',
         capacity: Number(newEvent.tier1Capacity) || 500,
@@ -464,9 +474,9 @@ export default function P1AdminPanelPage() {
     }
 
     if (newEvent.tier2Name.trim() && newEvent.tier2Price.trim()) {
-      p1Storage.createTier({
-        eventId: created.id,
+      tiersToCreate.push({
         name: newEvent.tier2Name.trim(),
+        description: 'VIP Access',
         priceInPence: Math.round(Number(newEvent.tier2Price) * 100),
         currency: 'INR',
         capacity: Number(newEvent.tier2Capacity) || 100,
@@ -479,33 +489,76 @@ export default function P1AdminPanelPage() {
       });
     }
 
-    setNewEvent({
-      title: '',
-      tagline: '',
-      description: '',
-      category: 'MUSIC_FESTIVAL',
-      posterUrl: '',
-      venueName: '',
-      address: '',
-      city: '',
-      googleMapsUrl: '',
-      startsAt: '',
-      endsAt: '',
-      upiId: '',
-      upiPayeeName: '',
-      whatsappPhone: '',
-      maxTicketsPerBooking: '6',
-      tier1Name: '',
-      tier1Price: '',
-      tier1Capacity: '',
-      tier2Name: '',
-      tier2Price: '',
-      tier2Capacity: '',
-    });
-    setBannerPreview('');
-    setShowAddEventModal(false);
-    loadAllData();
-    alert('Event created and published successfully!');
+    setIsSavingEvent(true);
+    try {
+      await p1Storage.createEventWithTiers(
+        {
+          organiserId: 'org-1',
+          title: newEvent.title.trim(),
+          slug: newEvent.title.toLowerCase().replace(/[^a-z0-9]+/g, '-') + `-${Date.now().toString(36).substring(2, 6)}`,
+          tagline: newEvent.tagline.trim(),
+          description: newEvent.description.trim() || newEvent.title.trim(),
+          category: newEvent.category as any,
+          status: 'PUBLISHED',
+          posterUrl: newEvent.posterUrl.trim() || DEFAULT_EVENT_POSTER,
+          galleryUrls: [],
+          upiId: newEvent.upiId.trim() || undefined,
+          upiPayeeName: newEvent.upiPayeeName.trim() || undefined,
+          whatsappPhone: newEvent.whatsappPhone.trim() || undefined,
+          maxTicketsPerBooking: maxTix,
+          venue: {
+            name: newEvent.venueName.trim(),
+            address: newEvent.address.trim(),
+            city: newEvent.city.trim() || 'Venue',
+            state: '',
+            postalCode: '',
+            country: 'India',
+            googleMapsUrl: newEvent.googleMapsUrl.trim() || `https://maps.google.com/?q=${encodeURIComponent(newEvent.venueName.trim() + (newEvent.city.trim() ? ' ' + newEvent.city.trim() : ''))}`,
+          },
+          schedule: {
+            doorsOpenAt: startsAtIso,
+            startsAt: startsAtIso,
+            endsAt: endsAtIso,
+            timezone: 'Asia/Kolkata',
+          },
+          isAgeRestricted: false,
+          featured: true,
+        },
+        tiersToCreate
+      );
+
+      setNewEvent({
+        title: '',
+        tagline: '',
+        description: '',
+        category: 'MUSIC_FESTIVAL',
+        posterUrl: '',
+        venueName: '',
+        address: '',
+        city: '',
+        googleMapsUrl: '',
+        startsAt: '',
+        endsAt: '',
+        upiId: '',
+        upiPayeeName: '',
+        whatsappPhone: '',
+        maxTicketsPerBooking: '6',
+        tier1Name: '',
+        tier1Price: '',
+        tier1Capacity: '',
+        tier2Name: '',
+        tier2Price: '',
+        tier2Capacity: '',
+      });
+      setBannerPreview('');
+      setShowAddEventModal(false);
+      loadAllData();
+      alert('Event created and published successfully!');
+    } catch (err: any) {
+      alert('Failed to publish event: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSavingEvent(false);
+    }
   };
 
   // Helper to open Edit Modal with populated data
@@ -608,7 +661,7 @@ export default function P1AdminPanelPage() {
   };
 
   // Save changes to edited event
-  const handleSaveEditedEvent = (e: React.FormEvent) => {
+  const handleSaveEditedEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEvent) return;
     if (!editForm.title.trim() || !editForm.venueName.trim()) {
@@ -633,33 +686,33 @@ export default function P1AdminPanelPage() {
     const startsAtIso = parsedStart ? parsedStart.toISOString() : editingEvent.schedule.startsAt;
     const endsAtIso = parsedEnd ? parsedEnd.toISOString() : editingEvent.schedule.endsAt;
 
-    p1Storage.updateEvent(editingEvent.id, {
-      title: editForm.title,
-      tagline: editForm.tagline,
-      description: editForm.description,
-      category: editForm.category as any,
-      posterUrl: editForm.posterUrl || editingEvent.posterUrl,
-      upiId: editForm.upiId.trim() || undefined,
-      upiPayeeName: editForm.upiPayeeName.trim() || undefined,
-      whatsappPhone: editForm.whatsappPhone.trim() || undefined,
-      maxTicketsPerBooking: maxTix,
-      venue: {
-        ...editingEvent.venue,
-        name: editForm.venueName,
-        address: editForm.address,
-        city: editForm.city,
-        googleMapsUrl: editForm.googleMapsUrl || `https://maps.google.com/?q=${encodeURIComponent(editForm.venueName + ' ' + editForm.city)}`,
-      },
-      schedule: {
-        ...editingEvent.schedule,
-        startsAt: startsAtIso,
-        endsAt: endsAtIso,
-      },
-    });
-
-    if (editForm.tiers.length > 0) {
-      p1Storage.syncEventTiers(
+    setIsSavingEvent(true);
+    try {
+      await p1Storage.updateEventWithTiers(
         editingEvent.id,
+        {
+          title: editForm.title,
+          tagline: editForm.tagline,
+          description: editForm.description,
+          category: editForm.category as any,
+          posterUrl: editForm.posterUrl || editingEvent.posterUrl,
+          upiId: editForm.upiId.trim() || undefined,
+          upiPayeeName: editForm.upiPayeeName.trim() || undefined,
+          whatsappPhone: editForm.whatsappPhone.trim() || undefined,
+          maxTicketsPerBooking: maxTix,
+          venue: {
+            ...editingEvent.venue,
+            name: editForm.venueName,
+            address: editForm.address,
+            city: editForm.city,
+            googleMapsUrl: editForm.googleMapsUrl || `https://maps.google.com/?q=${encodeURIComponent(editForm.venueName + ' ' + editForm.city)}`,
+          },
+          schedule: {
+            ...editingEvent.schedule,
+            startsAt: startsAtIso,
+            endsAt: endsAtIso,
+          },
+        },
         editForm.tiers.map((t) => ({
           id: t.id,
           name: t.name,
@@ -667,12 +720,16 @@ export default function P1AdminPanelPage() {
           capacity: Number(t.capacity) || 100,
         }))
       );
-    }
 
-    setShowEditModal(false);
-    setEditingEvent(null);
-    loadAllData();
-    alert(`"${editForm.title}" updated successfully!`);
+      setShowEditModal(false);
+      setEditingEvent(null);
+      loadAllData();
+      alert(`"${editForm.title}" updated successfully!`);
+    } catch (err: any) {
+      alert('Failed to update event: ' + (err.message || 'Unknown error'));
+    } finally {
+      setIsSavingEvent(false);
+    }
   };
 
   // --- CAMERA QR SCANNER ENGINE ---
@@ -714,6 +771,7 @@ export default function P1AdminPanelPage() {
         { facingMode: 'environment' }, // Back camera on mobile
         config,
         (decodedText) => {
+          if (gateModalOpenRef.current) return;
           handleProcessScan(decodedText);
         },
         () => {
@@ -783,35 +841,111 @@ export default function P1AdminPanelPage() {
     }
   };
 
-  // Process Decoded QR Code (Live Camera, Photo, or Manual)
-  const handleProcessScan = (code: string) => {
-    const cleanCode = code.trim();
-    if (!cleanCode) return;
-
-    // Pleasant audio feedback & device vibration
+  // Audio feedback synthesis (Web Audio API)
+  const playAudioFeedback = (type: 'SCAN_DETECT' | 'CONFIRM_ADMIT' | 'DUPLICATE_ALERT') => {
     try {
-      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate([100, 50, 100]);
-      }
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioCtx) {
-        const ctx = new AudioCtx();
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      if (type === 'SCAN_DETECT') {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.connect(gain);
         gain.connect(ctx.destination);
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(880, ctx.currentTime);
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+        osc.frequency.exponentialRampToValueAtTime(1050, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.25, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
         osc.start();
-        osc.stop(ctx.currentTime + 0.25);
+        osc.stop(ctx.currentTime + 0.12);
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) navigator.vibrate([60]);
+      } else if (type === 'CONFIRM_ADMIT') {
+        const freqs = [523.25, 659.25, 783.99, 1046.5];
+        freqs.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + idx * 0.05);
+          gain.gain.setValueAtTime(0, ctx.currentTime + idx * 0.05);
+          gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + idx * 0.05 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+          osc.start(ctx.currentTime + idx * 0.05);
+          osc.stop(ctx.currentTime + 0.45);
+        });
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) navigator.vibrate([100, 50, 150]);
+      } else if (type === 'DUPLICATE_ALERT') {
+        [0, 0.16].forEach((delay) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(160, ctx.currentTime + delay);
+          gain.gain.setValueAtTime(0.35, ctx.currentTime + delay);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + delay + 0.14);
+          osc.start(ctx.currentTime + delay);
+          osc.stop(ctx.currentTime + delay + 0.14);
+        });
+        if (typeof window !== 'undefined' && 'vibrate' in navigator) navigator.vibrate([250, 100, 250]);
       }
     } catch {}
+  };
+
+  // Process Decoded QR Code (Live Camera, Photo, or Manual)
+  const handleProcessScan = async (code: string) => {
+    const cleanCode = code.trim();
+    if (!cleanCode) return;
 
     const targetEventId = selectedScannerEvent === 'ALL' ? undefined : selectedScannerEvent;
-    const res = p1Storage.verifyTicketScan(cleanCode, targetEventId);
-    setScanResult(res);
+    const inspection = await p1Storage.resolveScanForGateInspectionAsync(cleanCode, targetEventId);
+
+    if (inspection.status === 'DUPLICATE') {
+      playAudioFeedback('DUPLICATE_ALERT');
+    } else if (inspection.status === 'READY') {
+      playAudioFeedback('SCAN_DETECT');
+    } else {
+      playAudioFeedback('DUPLICATE_ALERT');
+    }
+
+    setAdmitSuccess(false);
+    setGateModal(inspection);
     loadAllData();
+  };
+
+  const handleConfirmAdmit = async (ticketIds: string[]) => {
+    if (!ticketIds.length) return;
+    setIsAdmitting(true);
+    try {
+      const res = await p1Storage.confirmGateAdmit(ticketIds);
+      playAudioFeedback('CONFIRM_ADMIT');
+      setAdmitSuccess(true);
+      loadAllData();
+      if (gateModal) {
+        const updatedTickets = gateModal.tickets.map((t) =>
+          ticketIds.includes(t.id)
+            ? { ...t, status: 'CHECKED_IN' as const, checkedInAt: res.checkedInAt }
+            : t
+        );
+        setGateModal({
+          ...gateModal,
+          status: 'DUPLICATE',
+          message: `Admitted and locked!`,
+          tickets: updatedTickets,
+          unenteredTickets: updatedTickets.filter((t) => t.status !== 'CHECKED_IN'),
+          checkedInTickets: updatedTickets.filter((t) => t.status === 'CHECKED_IN'),
+          firstCheckedInAt: res.checkedInAt,
+        });
+      }
+    } catch (err: any) {
+      alert('Failed to lock admission: ' + err.message);
+    } finally {
+      setIsAdmitting(false);
+    }
   };
 
   const handleManualScanSubmit = (e: React.FormEvent) => {
@@ -822,13 +956,14 @@ export default function P1AdminPanelPage() {
   };
 
   // Helper to build WhatsApp message to send ticket to customer
-  const buildWhatsAppTicketSendUrl = (booking: Booking, ticket: Ticket) => {
+  const buildWhatsAppTicketSendUrl = (booking: Booking, ticket?: Ticket) => {
+    if (!ticket) return '#';
     const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
     const ticketUrl = `${origin}/ticket/${ticket.id}`;
     const event = events.find((e) => e.id === booking.eventId);
 
     const message =
-      `Hello ${booking.customer.fullName}!\n\n` +
+      `Hello ${booking.customer?.fullName || 'Customer'}!\n\n` +
       `Your ticket for "${event?.title || 'Event'}" has been CONFIRMED!\n\n` +
       `• Ticket No: ${ticket.ticketNumber}\n` +
       `• Tier: ${ticket.tierName}\n` +
@@ -836,7 +971,7 @@ export default function P1AdminPanelPage() {
       `Access your official QR Entry Pass here:\n${ticketUrl}\n\n` +
       `Please have your QR code ready for gate scanning at the entrance.`;
 
-    const cleanPhone = booking.customer.phone.replace(/\D/g, '');
+    const cleanPhone = (booking.customer?.phone || '').replace(/\D/g, '');
     const fullPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
 
     return `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
@@ -951,23 +1086,78 @@ export default function P1AdminPanelPage() {
       {/* TAB 1: BOOKINGS & MANUAL CONFIRMATION */}
       {activeTab === 'bookings' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-              Customer Bookings
-            </h2>
-            <span className="text-xs text-white/40">Only Name & Mobile (Zero Email)</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                Customer Bookings
+              </h2>
+              <span className="text-xs text-white/40">Manage orders, approve payments, and revoke fraudulent passes</span>
+            </div>
+
+            {/* Quick Filter Tabs */}
+            <div className="flex items-center gap-1.5 p-1 rounded-xl bg-white/[0.05] border border-white/[0.08] text-xs self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setBookingFilter('ALL')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                  bookingFilter === 'ALL'
+                    ? 'bg-[#FF6A1A] text-white shadow-sm'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                All ({bookings.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookingFilter('PENDING')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                  bookingFilter === 'PENDING'
+                    ? 'bg-amber-500 text-black font-bold shadow-sm'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                Pending ({pendingBookings.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setBookingFilter('CONFIRMED')}
+                className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                  bookingFilter === 'CONFIRMED'
+                    ? 'bg-emerald-500 text-white font-bold shadow-sm'
+                    : 'text-white/60 hover:text-white'
+                }`}
+              >
+                Confirmed ({confirmedBookings.length})
+              </button>
+            </div>
           </div>
 
-          {bookings.length === 0 ? (
+          {bookings.filter((b) => {
+            if (bookingFilter === 'PENDING') return b.status === 'PAYMENT_PENDING';
+            if (bookingFilter === 'CONFIRMED') return b.status === 'CONFIRMED';
+            return true;
+          }).length === 0 ? (
             <GlassCard className="text-center py-10 space-y-2">
-              <p className="text-xs text-white/50">No customer bookings yet.</p>
-              <Link href="/" className="text-xs text-[#FF9A45] hover:underline">
-                View live events page
-              </Link>
+              <p className="text-xs text-white/50">
+                {bookingFilter === 'ALL'
+                  ? 'No customer bookings yet.'
+                  : `No ${bookingFilter.toLowerCase()} bookings found.`}
+              </p>
+              {bookingFilter === 'ALL' && (
+                <Link href="/" className="text-xs text-[#FF9A45] hover:underline">
+                  View live events page
+                </Link>
+              )}
             </GlassCard>
           ) : (
             <div className="space-y-3">
-              {bookings.map((b) => {
+              {bookings
+                .filter((b) => {
+                  if (bookingFilter === 'PENDING') return b.status === 'PAYMENT_PENDING';
+                  if (bookingFilter === 'CONFIRMED') return b.status === 'CONFIRMED';
+                  return true;
+                })
+                .map((b) => {
                 const event = events.find((e) => e.id === b.eventId);
                 const issuedTickets = p1Storage.getTicketsByBookingId(b.id);
                 const firstTicket = issuedTickets[0];
@@ -1006,7 +1196,7 @@ export default function P1AdminPanelPage() {
                         </p>
                       </div>
 
-                      {/* Action: Manual Confirm & WhatsApp Send */}
+                      {/* Action: Manual Confirm & WhatsApp Send & Delete */}
                       <div className="flex flex-wrap items-center gap-2">
                         {b.status === 'PAYMENT_PENDING' ? (
                           <GlassButton
@@ -1019,24 +1209,50 @@ export default function P1AdminPanelPage() {
                           </GlassButton>
                         ) : (
                           <>
-                            {firstTicket && (
-                              <a
-                                href={buildWhatsAppTicketSendUrl(b, firstTicket)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/30"
+                            {firstTicket ? (
+                              <>
+                                <a
+                                  href={buildWhatsAppTicketSendUrl(b, firstTicket)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-900/30"
+                                >
+                                  <MessageSquare className="w-3.5 h-3.5" />
+                                  <span>Send on WhatsApp</span>
+                                </a>
+                                <Link href={`/ticket/${firstTicket.id}`}>
+                                  <GlassButton size="sm" variant="secondary">
+                                    View Pass
+                                  </GlassButton>
+                                </Link>
+                              </>
+                            ) : (
+                              <GlassButton
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleConfirmBooking(b.id)}
                               >
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                <span>Send on WhatsApp</span>
-                              </a>
-                            )}
-                            <Link href={`/ticket/${firstTicket?.id || ''}`}>
-                              <GlassButton size="sm" variant="secondary">
-                                View Pass
+                                View / Regenerate Pass
                               </GlassButton>
-                            </Link>
+                            )}
                           </>
                         )}
+
+                        {/* DELETE & REVOKE ACTION (PREVENT FRAUDULENT ENTRY) */}
+                        <button
+                          type="button"
+                          title="Delete & Revoke Booking (Invalidates Gate Passes)"
+                          onClick={() => handleDeleteBooking(b)}
+                          disabled={deletingBookingId === b.id}
+                          className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/25 hover:border-rose-500/50 text-rose-300 hover:text-white transition-all text-xs flex items-center gap-1 font-medium disabled:opacity-50"
+                        >
+                          {deletingBookingId === b.id ? (
+                            <div className="w-3 h-3 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                          )}
+                          <span>Delete</span>
+                        </button>
                       </div>
                     </div>
                   </GlassCard>
@@ -1625,6 +1841,266 @@ export default function P1AdminPanelPage() {
         </div>
       )}
 
+      {/* BOOKMYSHOW-STYLE GATE ADMISSION POPUP MODAL */}
+      {gateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-150">
+          <GlassCard className="max-w-md w-full space-y-4 max-h-[92vh] overflow-y-auto border-white/20 shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.12]">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#FF6A1A] animate-pulse" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Gate Admission Terminal
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setGateModal(null);
+                  setAdmitSuccess(false);
+                }}
+                className="w-7 h-7 rounded-full bg-white/[0.08] hover:bg-white/[0.16] flex items-center justify-center text-white/70 hover:text-white text-xs transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* EVENT MISMATCH STATE */}
+            {gateModal.status === 'EVENT_MISMATCH' && (
+              <div className="p-4 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-200 text-center space-y-2">
+                <AlertTriangle className="w-8 h-8 text-amber-400 mx-auto" />
+                <h3 className="text-base font-bold text-white">Event Mismatch</h3>
+                <p className="text-xs text-amber-200/90 leading-relaxed">{gateModal.message}</p>
+                <GlassButton
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  onClick={() => {
+                    setGateModal(null);
+                    setAdmitSuccess(false);
+                  }}
+                  className="mt-3"
+                >
+                  Dismiss & Scan Next Pass
+                </GlassButton>
+              </div>
+            )}
+
+            {/* INVALID PASS STATE */}
+            {gateModal.status === 'INVALID' && (
+              <div className="p-4 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-200 text-center space-y-2">
+                <X className="w-8 h-8 text-rose-400 mx-auto" />
+                <h3 className="text-base font-bold text-white">Unrecognized Pass</h3>
+                <p className="text-xs text-rose-200/90 leading-relaxed">
+                  No ticket or booking matches this QR code in the system.
+                </p>
+                <GlassButton
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
+                  onClick={() => {
+                    setGateModal(null);
+                    setAdmitSuccess(false);
+                  }}
+                  className="mt-3"
+                >
+                  Dismiss & Scan Next Pass
+                </GlassButton>
+              </div>
+            )}
+
+            {/* DUPLICATE DETECTED STATE */}
+            {gateModal.status === 'DUPLICATE' && !admitSuccess && (
+              <div className="p-4 rounded-2xl bg-rose-600/20 border-2 border-rose-500 text-rose-100 text-center space-y-3 shadow-[0_0_35px_rgba(244,63,94,0.35)]">
+                <div className="w-12 h-12 rounded-2xl bg-rose-500/30 border border-rose-400/50 flex items-center justify-center mx-auto text-rose-300">
+                  <AlertTriangle className="w-7 h-7 text-rose-400 animate-bounce" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white tracking-wide uppercase">
+                    🛑 Duplicate Entry Detected
+                  </h3>
+                  <p className="text-xs font-semibold text-rose-300 mt-1 uppercase tracking-wider">
+                    DO NOT ADMIT — PASS ALREADY USED
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-black/40 border border-rose-500/30 text-[11px] text-white/80 space-y-1">
+                  <div>First Admitted & Locked At:</div>
+                  <div className="text-sm font-bold font-mono text-rose-300">
+                    {gateModal.firstCheckedInAt
+                      ? new Date(gateModal.firstCheckedInAt).toLocaleString([], {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })
+                      : 'Earlier Today'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUCCESS ADMISSION CONFIRMED STATE */}
+            {admitSuccess && (
+              <div className="p-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500 text-emerald-100 text-center space-y-2 shadow-[0_0_35px_rgba(16,185,129,0.35)] animate-in zoom-in-95 duration-150">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/30 border border-emerald-400/50 flex items-center justify-center mx-auto text-emerald-300">
+                  <CheckCircle2 className="w-7 h-7 text-emerald-400" />
+                </div>
+                <h3 className="text-base font-extrabold text-white uppercase tracking-wide">
+                  ✅ Entry Confirmed & Locked!
+                </h3>
+                <p className="text-xs text-emerald-200">
+                  All {gateModal.tickets.length} pass(es) successfully admitted and locked.
+                </p>
+              </div>
+            )}
+
+            {/* BOOKING DETAILS & PASSES BREAKDOWN */}
+            {(gateModal.status === 'READY' || gateModal.status === 'DUPLICATE' || admitSuccess) && (
+              <>
+                {/* Event & Attendee Header */}
+                <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/[0.08] space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#FF9A45] tracking-wider block">
+                        Event
+                      </span>
+                      <h4 className="text-sm font-bold text-white line-clamp-1">
+                        {gateModal.event?.title || 'Firefly Live Event'}
+                      </h4>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-md bg-white/[0.08] border border-white/[0.12] text-[10px] font-mono text-white/70">
+                      {gateModal.booking?.bookingReference || 'CONFIRMED'}
+                    </span>
+                  </div>
+
+                  <div className="pt-2 border-t border-white/[0.06] grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] text-white/40 block">Customer Name</span>
+                      <span className="font-semibold text-white">
+                        {gateModal.booking?.customer.fullName || gateModal.matchedTicket?.attendeeName || 'Attendee'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-white/40 block">Phone</span>
+                      <span className="font-mono text-white/80">
+                        {gateModal.booking?.customer.phone || '—'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* PASSES BREAKDOWN ("HOW MANY PASSES AND WHAT THEY ARE") */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <span className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-[#FF9A45]" />
+                      <span>Passes in Booking ({gateModal.totalPasses})</span>
+                    </span>
+                    <span className="text-[11px] font-semibold text-[#FF9A45]">
+                      {gateModal.unenteredTickets.length} Unentered • {gateModal.checkedInTickets.length} Entered
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                    {gateModal.tickets.map((t, idx) => {
+                      const isCheckedIn = t.status === 'CHECKED_IN';
+                      return (
+                        <div
+                          key={t.id}
+                          className={`p-3 rounded-xl border transition-all text-xs flex items-center justify-between gap-2 ${
+                            isCheckedIn
+                              ? 'bg-white/[0.02] border-white/[0.08] text-white/50'
+                              : 'bg-white/[0.06] border-emerald-500/40 text-white shadow-sm'
+                          }`}
+                        >
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-white text-xs">{t.tierName}</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/[0.08] text-white/70 font-mono">
+                                Pass {idx + 1} of {gateModal.totalPasses}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-white/60">
+                              <span>{t.attendeeName}</span>
+                              <span>•</span>
+                              <span className="font-mono">{t.ticketNumber}</span>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            {isCheckedIn ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold text-[10px]">
+                                <Lock className="w-2.5 h-2.5" />
+                                <span>Entered</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-[10px]">
+                                <CheckCircle2 className="w-2.5 h-2.5" />
+                                <span>Ready</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ACTION BUTTONS */}
+                <div className="space-y-2 pt-2 border-t border-white/[0.08]">
+                  {gateModal.status === 'READY' && !admitSuccess && (
+                    <GlassButton
+                      variant="primary"
+                      fullWidth
+                      size="lg"
+                      onClick={() =>
+                        handleConfirmAdmit(gateModal.unenteredTickets.map((t) => t.id))
+                      }
+                      disabled={isAdmitting || gateModal.unenteredTickets.length === 0}
+                      className="py-3.5 shadow-[0_4px_24px_rgba(255,106,26,0.45)] text-sm font-extrabold tracking-wide"
+                    >
+                      {isAdmitting ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Locking Entry...</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-white" />
+                          <span>
+                            CONFIRM & LOCK ENTRY ({gateModal.unenteredTickets.length} Pass
+                            {gateModal.unenteredTickets.length > 1 ? 'es' : ''})
+                          </span>
+                        </div>
+                      )}
+                    </GlassButton>
+                  )}
+
+                  {gateModal.status === 'DUPLICATE' && !admitSuccess && (
+                    <button
+                      disabled
+                      className="w-full py-3 rounded-xl bg-white/[0.05] border border-white/[0.10] text-rose-400 font-bold text-xs uppercase tracking-wider cursor-not-allowed opacity-60 flex items-center justify-center gap-2"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Entry Locked — Already Admitted</span>
+                    </button>
+                  )}
+
+                  <GlassButton
+                    variant="secondary"
+                    fullWidth
+                    size="md"
+                    onClick={() => {
+                      setGateModal(null);
+                      setAdmitSuccess(false);
+                    }}
+                  >
+                    {admitSuccess ? 'Done / Scan Next Pass' : 'Scan Next Pass'}
+                  </GlassButton>
+                </div>
+              </>
+            )}
+          </GlassCard>
+        </div>
+      )}
+
       {/* MODAL: TICKET QR GENERATED FOR ADMIN TO DISPATCH */}
       {confirmedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -1650,37 +2126,39 @@ export default function P1AdminPanelPage() {
             {/* Generated Official Pass Card or QR Code preview */}
             <div className="p-2 bg-black/40 rounded-2xl border border-white/[0.10] shadow-xl inline-block mx-auto max-w-[280px]">
               <img
-                src={confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls[0]}
+                src={confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls?.[0] || ''}
                 alt="Ticket Pass Card"
                 className="w-full h-auto rounded-xl object-contain shadow-md"
               />
             </div>
 
             <p className="text-xs text-white/70">
-              Pass Number: <span className="font-mono font-bold text-white">{confirmedModal.tickets[0]?.ticketNumber}</span>
+              Pass Number: <span className="font-mono font-bold text-white">{confirmedModal.tickets?.[0]?.ticketNumber || 'GENERATED'}</span>
             </p>
 
             {/* DIRECT PASS DISPATCH VIA WHATSAPP */}
             <div className="pt-2 space-y-2">
               {/* PRIMARY: Direct WhatsApp chat redirect with preloaded text & link */}
-              <a
-                href={buildWhatsAppTicketSendUrl(confirmedModal.booking, confirmedModal.tickets[0])}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block"
-              >
-                <GlassButton
-                  variant="primary"
-                  fullWidth
-                  size="lg"
-                  className="bg-emerald-600 hover:bg-emerald-500 py-3.5 shadow-[0_4px_24px_rgba(16,185,129,0.30)] text-white"
+              {confirmedModal.tickets?.[0] && (
+                <a
+                  href={buildWhatsAppTicketSendUrl(confirmedModal.booking, confirmedModal.tickets[0])}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block"
                 >
-                  <div className="flex items-center justify-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-white" />
-                    <span className="font-bold">Send Ticket on WhatsApp</span>
-                  </div>
-                </GlassButton>
-              </a>
+                  <GlassButton
+                    variant="primary"
+                    fullWidth
+                    size="lg"
+                    className="bg-emerald-600 hover:bg-emerald-500 py-3.5 shadow-[0_4px_24px_rgba(16,185,129,0.30)] text-white"
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      <MessageSquare className="w-4 h-4 text-white" />
+                      <span className="font-bold">Send Ticket on WhatsApp</span>
+                    </div>
+                  </GlassButton>
+                </a>
+              )}
 
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {/* Copy Image to Clipboard */}
@@ -1688,7 +2166,7 @@ export default function P1AdminPanelPage() {
                   type="button"
                   onClick={() =>
                     handleCopyPassImage(
-                      confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls[0]
+                      confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls?.[0] || ''
                     )
                   }
                   className="py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.10] text-white flex items-center justify-center gap-1.5 transition-colors font-medium"
@@ -1699,8 +2177,8 @@ export default function P1AdminPanelPage() {
 
                 {/* Download Pass Image */}
                 <a
-                  href={confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls[0]}
-                  download={`Firefly-Pass-${confirmedModal.tickets[0]?.ticketNumber}.png`}
+                  href={confirmedModal.passCardUrls?.[0] || confirmedModal.qrDataUrls?.[0] || ''}
+                  download={`Firefly-Pass-${confirmedModal.tickets?.[0]?.ticketNumber || 'Ticket'}.png`}
                   className="py-2 px-3 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.10] text-white flex items-center justify-center gap-1.5 transition-colors font-medium text-center"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -2024,8 +2502,8 @@ export default function P1AdminPanelPage() {
                 >
                   Cancel
                 </GlassButton>
-                <GlassButton type="submit" variant="primary" fullWidth>
-                  Save Changes
+                <GlassButton type="submit" variant="primary" fullWidth disabled={isSavingEvent}>
+                  {isSavingEvent ? 'Saving...' : 'Save Changes'}
                 </GlassButton>
               </div>
             </form>
@@ -2284,8 +2762,8 @@ export default function P1AdminPanelPage() {
                 <GlassButton type="button" variant="secondary" fullWidth onClick={() => setShowAddEventModal(false)}>
                   Cancel
                 </GlassButton>
-                <GlassButton type="submit" variant="primary" fullWidth>
-                  Publish Event
+                <GlassButton type="submit" variant="primary" fullWidth disabled={isSavingEvent}>
+                  {isSavingEvent ? 'Publishing...' : 'Publish Event'}
                 </GlassButton>
               </div>
             </form>

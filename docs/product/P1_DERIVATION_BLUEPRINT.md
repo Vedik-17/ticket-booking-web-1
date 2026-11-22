@@ -31,3 +31,4 @@ FIREFLY P1 is a lightweight, single-event rapid deployment edition derived from 
 3. **Pluggable Payment Engine:** `IPaymentProvider` is implemented as `DirectUpiPaymentProvider`, generating deep-link URIs for PhonePe, Google Pay, and Paytm, accompanied by an exact-amount UPI QR code.
 4. **Local IndexedDB Engine:** A local storage driver replaces the Supabase repository, ensuring 100% functionality on a static or serverless host (e.g. Vercel) without any external database.
 5. **Preservation Guarantee:** V1 remains the primary enterprise codebase; P1 is simply an alternative frontend assembly using the same battle-tested engine modules.
+

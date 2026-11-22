@@ -29,8 +29,15 @@ export default function P1UpiPaymentPage() {
   const router = useRouter();
   const bookingId = params?.id as string;
 
-  const [booking, setBooking] = useState<Booking | null>(null);
-  const [event, setEvent] = useState<Event | null>(null);
+  const [booking, setBooking] = useState<Booking | null>(() => (bookingId ? p1Storage.getBooking(bookingId) || null : null));
+  const [event, setEvent] = useState<Event | null>(() => {
+    if (bookingId) {
+      const b = p1Storage.getBooking(bookingId);
+      return b ? p1Storage.getEvent(b.eventId) || null : null;
+    }
+    return null;
+  });
+  const [isLoading, setIsLoading] = useState(() => !p1Storage.getBooking(bookingId));
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
@@ -41,7 +48,9 @@ export default function P1UpiPaymentPage() {
   const adminWhatsAppPhone = event?.whatsappPhone?.trim() || p1Storage.defaultAdminPhone;
 
   useEffect(() => {
-    if (bookingId) {
+    if (!bookingId) return;
+
+    const loadData = () => {
       const b = p1Storage.getBooking(bookingId);
       if (b) {
         setBooking(b);
@@ -72,8 +81,18 @@ export default function P1UpiPaymentPage() {
 
           generateUpiQrDataUrl(uri).then(setQrDataUrl);
         }
+        setIsLoading(false);
       }
-    }
+    };
+
+    loadData();
+    const unsubscribe = p1Storage.subscribe(loadData);
+    p1Storage.syncWithServer().finally(() => {
+      loadData();
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [bookingId, router]);
 
   // Polling local store to auto-redirect as soon as admin confirms payment
@@ -96,6 +115,15 @@ export default function P1UpiPaymentPage() {
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
+
+  if (isLoading && !booking) {
+    return (
+      <div className="py-20 text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-white/50">Loading booking details...</p>
+      </div>
+    );
+  }
 
   if (!booking) {
     return (
