@@ -8,18 +8,28 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        reserva: {
+          DEFAULT: '#6B1736',
+          dark: '#4E0F26',
+          deep: '#380B1C',
+          light: '#FFF5F7',
+          pill: '#FDF2F4',
+          border: '#F0E6E8',
+          subtle: '#FBF9FA',
+          accent: '#D93B68',
+        },
         oled: '#080808',
         charcoal: '#111111',
-        surface: '#181818',
-        'surface-subtle': '#222222',
+        surface: '#FFFFFF',
+        'surface-subtle': '#FBF9FA',
         accent: {
-          DEFAULT: '#FF6A1A',
-          glow: '#FF9A45',
-          dim: 'rgba(255, 106, 26, 0.15)',
+          DEFAULT: '#6B1736',
+          glow: '#D93B68',
+          dim: 'rgba(107, 23, 54, 0.12)',
         },
         grey: {
-          secondary: '#A3A3A3',
-          muted: '#666666',
+          secondary: '#666666',
+          muted: '#8E8E93',
         },
       },
       fontFamily: {

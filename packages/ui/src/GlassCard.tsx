@@ -24,13 +24,13 @@ export const GlassCard: React.FC<GlassCardProps> = ({
 
   const variantClasses = {
     default:
-      'bg-[#121212]/80 border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]',
+      'bg-white border-[#F0E6E8] text-[#1A1A1A] shadow-[0_4px_20px_0_rgba(107,23,54,0.05)]',
     elevated:
-      'bg-[#181818]/90 border-white/[0.12] shadow-[0_12px_40px_0_rgba(0,0,0,0.5)]',
+      'bg-white border-[#E5D7DA] text-[#1A1A1A] shadow-[0_8px_30px_0_rgba(107,23,54,0.08)]',
     interactive:
-      'bg-[#121212]/70 hover:bg-[#181818]/90 border-white/[0.08] hover:border-white/[0.18] hover:shadow-[0_12px_40px_0_rgba(255,106,26,0.12)] cursor-pointer active:scale-[0.99]',
+      'bg-white hover:bg-[#FFFDFE] border-[#F0E6E8] hover:border-[#6B1736]/30 text-[#1A1A1A] shadow-[0_4px_20px_0_rgba(107,23,54,0.05)] hover:shadow-[0_8px_30px_0_rgba(107,23,54,0.10)] cursor-pointer active:scale-[0.99]',
     accent:
-      'bg-[#181818]/90 border-[#FF6A1A]/30 shadow-[0_8px_32px_0_rgba(255,106,26,0.15)]',
+      'bg-[#FFF5F7] border-[#FCE7EC] text-[#1A1A1A] shadow-[0_4px_20px_0_rgba(107,23,54,0.06)]',
   };
 
   return (

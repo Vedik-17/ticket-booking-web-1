@@ -1,14 +1,10 @@
 /**
- * Generates human-friendly Booking reference e.g., "FF-2026-X89J"
+ * Generates human-friendly Booking reference e.g., "RSV-2026-X89J" or "RSV8463921"
  * Universal: works in both Browser and Node.js
  */
-export function generateBookingReference(year = new Date().getFullYear()): string {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // exclude confusing chars like 0/O, 1/I
-  let code = '';
-  for (let i = 0; i < 4; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return `FF-${year}-${code}`;
+export function generateBookingReference(prefix = 'RSV', year = new Date().getFullYear()): string {
+  const num = Math.floor(1000000 + Math.random() * 9000000);
+  return `${prefix}${num}`;
 }
 
 /**

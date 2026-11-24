@@ -3,17 +3,17 @@
 @tailwind utilities;
 
 :root {
-  --color-oled: #080808;
-  --color-charcoal: #111111;
-  --color-surface: #181818;
-  --color-accent: #FF6A1A;
-  --color-accent-glow: #FF9A45;
-  --color-text-primary: #FFFFFF;
-  --color-text-secondary: #A3A3A3;
+  --color-bg: #FBF9FA;
+  --color-surface: #FFFFFF;
+  --color-reserva: #6B1736;
+  --color-reserva-dark: #4E0F26;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #666666;
+  --color-border: #F0E6E8;
 }
 
 body {
-  background-color: var(--color-oled);
+  background-color: var(--color-bg);
   color: var(--color-text-primary);
   min-height: 100vh;
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
@@ -21,7 +21,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Liquid Glass Ambient Gradient Glow */
+/* Reserva Ambient Tint */
 .ambient-glow {
   position: fixed;
   top: -15%;
@@ -29,7 +29,7 @@ body {
   transform: translateX(-50%);
   width: 750px;
   height: 400px;
-  background: radial-gradient(circle, rgba(255, 106, 26, 0.08) 0%, rgba(255, 154, 69, 0.02) 40%, transparent 70%);
+  background: radial-gradient(circle, rgba(107, 23, 54, 0.04) 0%, rgba(217, 59, 104, 0.015) 40%, transparent 70%);
   filter: blur(80px);
   pointer-events: none;
   z-index: 0;
@@ -41,10 +41,10 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #080808;
+  background: #FBF9FA;
 }
 ::-webkit-scrollbar-thumb {
-  background: #222222;
+  background: #E5D7DA;
   border-radius: 9999px;
 }
 

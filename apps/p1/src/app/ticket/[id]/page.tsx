@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import QRCode from 'qrcode';
 import {
@@ -16,6 +16,9 @@ import {
   ArrowLeft,
   Download,
   MessageSquare,
+  Home,
+  Check,
+  Wallet,
 } from 'lucide-react';
 import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
 import { Ticket, Event, Booking } from '@firefly/shared-types';
@@ -23,11 +26,14 @@ import { p1Storage } from '@/lib/idb-storage';
 import { buildWhatsAppLink, buildTicketShareMessage } from '@firefly/core';
 import { generateTicketCardDataUrl, shareTicketImageDirectly } from '@/lib/image';
 
-export default function P1TicketPassPage() {
+export default function ReservaTicketPassPage() {
   const params = useParams();
+  const router = useRouter();
   const ticketId = params?.id as string;
 
-  const [ticket, setTicket] = useState<Ticket | null>(() => (ticketId ? p1Storage.getTicket(ticketId) || null : null));
+  const [ticket, setTicket] = useState<Ticket | null>(() =>
+    ticketId ? p1Storage.getTicket(ticketId) || null : null
+  );
   const [event, setEvent] = useState<Event | null>(() => {
     if (ticketId) {
       const t = p1Storage.getTicket(ticketId);
@@ -44,6 +50,9 @@ export default function P1TicketPassPage() {
   });
   const [isLoading, setIsLoading] = useState(() => !p1Storage.getTicket(ticketId));
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
+  const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   useEffect(() => {
     if (!ticketId) return;
@@ -60,7 +69,7 @@ export default function P1TicketPassPage() {
         QRCode.toDataURL(t.qrPayload, {
           width: 320,
           margin: 2,
-          color: { dark: '#080808', light: '#FFFFFF' },
+          color: { dark: '#1A1A1A', light: '#FFFFFF' },
           errorCorrectionLevel: 'H',
         }).then(setQrDataUrl);
         setIsLoading(false);
@@ -77,218 +86,223 @@ export default function P1TicketPassPage() {
     return () => unsubscribe();
   }, [ticketId]);
 
+  const handleShareWhatsApp = () => {
+    if (!ticket || !event) return;
+    const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+    const message = `🎟️ *Reserva Ticket Pass*\n\nEvent: *${event.title}*\nAttendee: ${ticket.attendeeName}\nTier: ${ticket.tierName}\nBooking Ref: ${booking?.bookingReference || ticket.ticketNumber}\n\nView Your Pass:\n${shareUrl}\n\nPlease have the QR code ready for gate check-in.`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, '_blank');
+  };
+
+  const handleDownloadCard = async () => {
+    if (!ticket || !event) return;
+    setDownloading(true);
+    try {
+      const cardUrl = await generateTicketCardDataUrl({
+        eventTitle: event.title,
+        venueName: `${event.venue.name}, ${event.venue.city}`,
+        dateStr: new Date(event.schedule.startsAt).toLocaleDateString('en-US', {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        attendeeName: ticket.attendeeName,
+        tierName: ticket.tierName,
+        ticketNumber: ticket.ticketNumber,
+        qrPayload: ticket.qrPayload,
+      });
+
+      const a = document.createElement('a');
+      a.href = cardUrl;
+      a.download = `Reserva-Ticket-${ticket.ticketNumber}.png`;
+      a.click();
+    } catch (e) {
+      console.warn('Card generation fallback:', e);
+      alert('Could not download image, please take a screenshot of your QR pass.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (isLoading && !ticket) {
     return (
-      <div className="py-20 text-center space-y-4">
-        <div className="w-10 h-10 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-white/50">Loading ticket pass...</p>
+      <div className="py-24 text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-[#6B1736] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-[#8E8E93]">Loading digital ticket pass...</p>
       </div>
     );
   }
 
   if (!ticket) {
     return (
-      <div className="py-20 text-center space-y-4">
-        <h2 className="text-xl font-bold text-white">Ticket Not Found</h2>
+      <div className="py-20 text-center space-y-4 bg-white rounded-3xl p-8 border border-[#F0E6E8] shadow-sm">
+        <h2 className="text-xl font-bold text-[#1A1A1A]">Ticket Pass Not Found</h2>
+        <p className="text-xs text-[#666666]">
+          This ticket may have been moved or the booking reference is expired.
+        </p>
         <Link href="/">
-          <GlassButton variant="secondary">Back to Events</GlassButton>
+          <GlassButton variant="primary">Browse Events</GlassButton>
         </Link>
       </div>
     );
   }
 
-  const displayEvent: Event = event || {
-    id: ticket.eventId,
-    organiserId: 'org-1',
-    title: 'Live Event Pass',
-    slug: 'event',
-    tagline: '',
-    description: '',
-    category: 'MUSIC_FESTIVAL',
-    status: 'PUBLISHED',
-    posterUrl: '',
-    galleryUrls: [],
-    venue: { name: 'Event Grounds', city: 'Venue', address: '', state: '', postalCode: '', country: 'India', googleMapsUrl: '' },
-    schedule: { startsAt: ticket.createdAt, endsAt: ticket.createdAt, timezone: 'Asia/Kolkata' },
-    isAgeRestricted: false,
-    featured: true,
-    createdAt: ticket.createdAt,
-    updatedAt: ticket.createdAt,
-  };
+  const startDate = event
+    ? new Date(event.schedule.startsAt).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'Upcoming Event';
 
-  const startDate = new Date(displayEvent.schedule.startsAt).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-  const startTime = new Date(displayEvent.schedule.startsAt).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const ticketUrl = `${origin}/ticket/${ticket.id}`;
-  const fullPreloadedWhatsAppText =
-    `Hello ${ticket.attendeeName}!\n\n` +
-    `Your digital ticket pass for "${displayEvent.title}" is confirmed!\n\n` +
-    `• Ticket No: ${ticket.ticketNumber}\n` +
-    `• Tier: ${ticket.tierName}\n` +
-    `• Attendee: ${ticket.attendeeName}\n` +
-    `• Date: ${startDate} • ${startTime}\n` +
-    `• Venue: ${displayEvent.venue.name}, ${displayEvent.venue.city}\n\n` +
-    `Access your official QR entrance pass here:\n${ticketUrl}\n\n` +
-    `Please have this QR code ready for gate scanning at the venue.`;
-
-  const targetPhone = booking?.customer.phone || '';
-  const waDirectUrl = targetPhone
-    ? buildWhatsAppLink(targetPhone, fullPreloadedWhatsAppText)
-    : `https://api.whatsapp.com/send?text=${encodeURIComponent(fullPreloadedWhatsAppText)}`;
-
-  const handleDownloadPhoto = async () => {
-    if (!ticket) return;
-    const cardUrl = await generateTicketCardDataUrl({
-      eventTitle: displayEvent.title,
-      attendeeName: ticket.attendeeName,
-      tierName: ticket.tierName,
-      ticketNumber: ticket.ticketNumber,
-      venueName: displayEvent.venue.name,
-      dateStr: startDate,
-      qrPayload: ticket.qrPayload,
-    });
-
-    const a = document.createElement('a');
-    a.href = cardUrl;
-    a.download = `Firefly-Pass-${ticket.ticketNumber}.png`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
+  const isCheckedIn = ticket.status === 'CHECKED_IN';
 
   return (
-    <div className="max-w-md mx-auto space-y-6">
+    <div className="max-w-md mx-auto space-y-5 pb-20">
+      {/* Top Header */}
       <div className="flex items-center justify-between">
-        <Link href="/" className="inline-flex items-center gap-1 text-xs text-white/60 hover:text-white">
-          <ArrowLeft className="w-3.5 h-3.5" />
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#666666] hover:text-[#6B1736] transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
           <span>Home</span>
         </Link>
-        <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Verified & Confirmed</span>
+        <span className="text-xs font-bold text-[#6B1736] uppercase tracking-wider">
+          Digital Pass
         </span>
       </div>
 
-      {/* Ticket Pass Card */}
-      <GlassCard padding="none" className="relative shadow-2xl overflow-hidden print:border-black">
-        <div className="relative h-28 bg-neutral-900 overflow-hidden">
-          <img src={displayEvent.posterUrl || '/placeholder.jpg'} alt={displayEvent.title} className="w-full h-full object-cover opacity-60" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/50 to-transparent" />
-          <div className="absolute top-3 left-4 right-4 flex items-center justify-between">
-            <span className="text-[10px] tracking-widest font-mono font-bold text-white/80 uppercase">FIREFLY PASS</span>
-            <GlassBadge variant={ticket.status === 'CHECKED_IN' ? 'warning' : 'accent'} size="sm">
-              {ticket.status === 'CHECKED_IN' ? 'CHECKED IN' : 'VALID FOR ENTRY'}
-            </GlassBadge>
-          </div>
-          <div className="absolute bottom-2.5 left-4 right-4">
-            <h2 className="text-base font-bold text-white truncate">{displayEvent.title}</h2>
+      {/* Confirmation Banner (Screen 10 reference) */}
+      <div className="p-4 rounded-3xl bg-emerald-50 border border-emerald-200 text-center space-y-1 shadow-sm">
+        <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center mx-auto shadow-sm">
+          <CheckCircle2 className="w-5 h-5" />
+        </div>
+        <h1 className="text-base font-extrabold text-emerald-950">
+          Booking Confirmed!
+        </h1>
+        <p className="text-xs text-emerald-800">
+          Your tickets have been issued and are ready for entry.
+        </p>
+      </div>
+
+      {/* Digital Ticket Card (Screen 12 reference) */}
+      <div className="bg-white rounded-3xl overflow-hidden border border-[#F0E6E8] shadow-xl space-y-0">
+        {/* Card Header */}
+        <div className="p-5 bg-gradient-to-r from-[#4E0F26] to-[#6B1736] text-white space-y-1">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-rose-200">
+            Reserva Pass
+          </span>
+          <h2 className="text-lg font-black tracking-tight">{event?.title || 'Live Experience'}</h2>
+          <div className="flex items-center gap-2 text-xs text-white/80 pt-1">
+            <span className="flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-rose-300" />
+              {startDate}
+            </span>
+            <span>•</span>
+            <span className="truncate">{event?.venue.city}</span>
           </div>
         </div>
 
-        {/* Notch */}
-        <div className="relative flex items-center justify-between px-2 bg-[#141414]">
-          <div className="w-4 h-6 bg-[#080808] rounded-r-full -ml-2 border-r border-white/[0.12]" />
-          <div className="flex-1 border-t-2 border-dashed border-white/[0.10] mx-2" />
-          <div className="w-4 h-6 bg-[#080808] rounded-l-full -mr-2 border-l border-white/[0.12]" />
-        </div>
-
-        {/* Ticket Details */}
-        <div className="p-6 bg-[#141414] space-y-5 text-center">
-          <div className="inline-block p-3.5 rounded-2xl bg-white shadow-xl">
+        {/* QR Code Container */}
+        <div className="p-6 text-center space-y-4 bg-white">
+          <div className="relative inline-block p-4 rounded-2xl bg-white border-2 border-[#F0E6E8] shadow-sm">
             {qrDataUrl ? (
-              <img src={qrDataUrl} alt="Pass QR" className="w-48 h-48 object-contain" />
+              <img src={qrDataUrl} alt="Ticket QR" className="w-56 h-56 mx-auto rounded-lg" />
             ) : (
-              <div className="w-48 h-48 bg-neutral-200 animate-pulse" />
+              <div className="w-56 h-56 flex items-center justify-center bg-neutral-100 rounded-lg">
+                <QrCode className="w-12 h-12 text-[#8E8E93] animate-pulse" />
+              </div>
+            )}
+
+            {isCheckedIn && (
+              <div className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-2xl flex flex-col items-center justify-center p-4">
+                <CheckCircle2 className="w-12 h-12 text-emerald-600" />
+                <span className="text-sm font-bold text-emerald-950 mt-1">CHECKED IN</span>
+                <span className="text-[10px] text-emerald-700">
+                  {ticket.checkedInAt ? new Date(ticket.checkedInAt).toLocaleTimeString() : 'Entry Granted'}
+                </span>
+              </div>
             )}
           </div>
 
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-mono tracking-widest text-white/40 uppercase block">Ticket ID</span>
-            <p className="text-base font-mono font-bold text-white tracking-widest">{ticket.ticketNumber}</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-left p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-xs">
-            <div>
-              <span className="text-[10px] text-white/40 uppercase block">Attendee</span>
-              <span className="font-semibold text-white truncate block">{ticket.attendeeName}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-white/40 uppercase block">Tier</span>
-              <span className="font-semibold text-[#FF9A45] truncate block">{ticket.tierName}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-white/40 uppercase block">Date</span>
-              <span className="font-medium text-white truncate block">{startDate} • {startTime}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-white/40 uppercase block">Venue</span>
-              <span className="font-medium text-white truncate block">{displayEvent.venue.name}</span>
-            </div>
-          </div>
-
-          <p className="text-[11px] text-white/40 flex items-center justify-center gap-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-[#FF9A45]" />
-            <span>Present this QR at entrance for scanner admission</span>
+          <p className="text-[11px] text-[#8E8E93]">
+            Present this QR code at the entrance scanner for admission
           </p>
-        </div>
-      </GlassCard>
 
-      {/* Buttons */}
-      <div className="space-y-2 print:hidden">
-        <a
-          href={waDirectUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block w-full"
+          {/* Ticket Details Breakdown */}
+          <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[#F0E6E8] text-left text-xs">
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#8E8E93] block">
+                Attendee
+              </span>
+              <span className="font-bold text-[#1A1A1A] truncate block">
+                {ticket.attendeeName}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#8E8E93] block">
+                Ticket Tier
+              </span>
+              <span className="font-bold text-[#6B1736] truncate block">
+                {ticket.tierName}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#8E8E93] block">
+                Booking ID
+              </span>
+              <span className="font-mono font-bold text-[#1A1A1A] block">
+                {booking?.bookingReference || ticket.ticketNumber}
+              </span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-[#8E8E93] block">
+                Status
+              </span>
+              <span
+                className={`font-bold block ${
+                  isCheckedIn ? 'text-emerald-600' : 'text-blue-600'
+                }`}
+              >
+                {isCheckedIn ? 'Checked-In' : 'Valid Entry'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons (WhatsApp Share & Download Card) */}
+      <div className="space-y-2.5">
+        <button
+          onClick={handleShareWhatsApp}
+          className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all"
         >
-          <GlassButton
-            variant="primary"
-            fullWidth
-            size="lg"
-            className="bg-emerald-600 hover:bg-emerald-500 py-3.5 shadow-[0_4px_24px_rgba(16,185,129,0.35)] text-white"
-          >
-            <MessageSquare className="w-4 h-4 mr-2 text-white" />
-            <span className="font-bold">Send Ticket on WhatsApp</span>
-          </GlassButton>
-        </a>
+          <MessageSquare className="w-4 h-4" />
+          <span>Share Ticket on WhatsApp</span>
+        </button>
 
         <div className="grid grid-cols-2 gap-2">
-          <GlassButton variant="secondary" fullWidth size="md" onClick={handleDownloadPhoto}>
-            <Download className="w-4 h-4 mr-2 text-white/70" />
-            <span>Save to Photos</span>
-          </GlassButton>
-          <GlassButton variant="secondary" fullWidth size="md" onClick={() => window.print()}>
-            <Printer className="w-4 h-4 mr-2 text-white/70" />
-            <span>Print Pass</span>
-          </GlassButton>
-        </div>
+          <button
+            onClick={handleDownloadCard}
+            disabled={downloading}
+            className="flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl bg-white border border-[#F0E6E8] hover:bg-[#FFF5F7] text-xs font-bold text-[#1A1A1A] transition-colors shadow-sm"
+          >
+            <Download className="w-4 h-4 text-[#6B1736]" />
+            <span>{downloading ? 'Exporting...' : 'Save Ticket Card'}</span>
+          </button>
 
-        {displayEvent.whatsappPhone && (
-          <div className="text-center pt-2">
-            <a
-              href={buildWhatsAppLink(
-                displayEvent.whatsappPhone,
-                `Hi, I have a query regarding my ticket ${ticket.ticketNumber} for "${displayEvent.title}".`
-              )}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-white/50 hover:text-emerald-400 inline-flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Contact Organiser on WhatsApp</span>
-            </a>
-          </div>
-        )}
+          <Link
+            href="/"
+            className="flex items-center justify-center gap-1.5 py-3 px-3 rounded-2xl bg-white border border-[#F0E6E8] hover:bg-[#FFF5F7] text-xs font-bold text-[#1A1A1A] transition-colors shadow-sm"
+          >
+            <Home className="w-4 h-4 text-[#6B1736]" />
+            <span>Back to Home</span>
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
-

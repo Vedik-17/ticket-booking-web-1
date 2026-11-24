@@ -12,18 +12,20 @@ import {
   Check,
   Plus,
   Minus,
-  Sparkles,
   ArrowLeft,
-  Zap,
-  Pencil,
-  MessageSquare,
+  Share2,
+  Heart,
+  Info,
+  Users,
+  Sparkles,
+  Ticket as TicketIcon,
 } from 'lucide-react';
-import { GlassCard, GlassBadge, GlassButton, GlassInput } from '@firefly/ui';
+import { GlassButton } from '@firefly/ui';
 import { Event, TicketTier } from '@firefly/shared-types';
 import { formatINR, buildWhatsAppLink } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
 
-export default function P1EventDetailPage() {
+export default function ReservaEventDetailPage() {
   const params = useParams();
   const router = useRouter();
   const idOrSlug = params?.id as string;
@@ -42,10 +44,26 @@ export default function P1EventDetailPage() {
     fullName: '',
     phone: '',
   });
+  const [activeTab, setActiveTab] = useState<'about' | 'venue' | 'lineup'>('about');
+  const [isSaved, setIsSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showCheckoutForm, setShowCheckoutForm] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const savedProfile = localStorage.getItem('reserva_user_profile');
+        if (savedProfile) {
+          const u = JSON.parse(savedProfile);
+          setCustomer({
+            fullName: u.name || '',
+            phone: u.phone || '',
+          });
+        }
+      } catch {}
+    }
+
     if (!idOrSlug) return;
 
     const loadEventData = () => {
@@ -60,6 +78,18 @@ export default function P1EventDetailPage() {
           }
           return prev;
         });
+
+        // Check if saved
+        if (typeof window !== 'undefined') {
+          try {
+            const saved = localStorage.getItem('reserva_saved_events');
+            if (saved) {
+              const list: string[] = JSON.parse(saved);
+              setIsSaved(list.includes(evt.id));
+            }
+          } catch {}
+        }
+
         setIsLoading(false);
       }
     };
@@ -74,6 +104,37 @@ export default function P1EventDetailPage() {
     return () => unsubscribe();
   }, [idOrSlug]);
 
+  const toggleSave = () => {
+    if (!event || typeof window === 'undefined') return;
+    try {
+      const saved = localStorage.getItem('reserva_saved_events');
+      let list: string[] = saved ? JSON.parse(saved) : [];
+      if (list.includes(event.id)) {
+        list = list.filter((id) => id !== event.id);
+        setIsSaved(false);
+      } else {
+        list.push(event.id);
+        setIsSaved(true);
+      }
+      localStorage.setItem('reserva_saved_events', JSON.stringify(list));
+    } catch {}
+  };
+
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      if (navigator.share && event) {
+        navigator.share({
+          title: event.title,
+          text: `Check out ${event.title} on Reserva!`,
+          url: window.location.href,
+        }).catch(() => {});
+      } else {
+        navigator.clipboard?.writeText(window.location.href);
+        alert('Event link copied to clipboard!');
+      }
+    }
+  };
+
   const updateQty = (tierId: string, delta: number, maxTier: number) => {
     const cur = quantities[tierId] || 0;
     setError(null);
@@ -87,320 +148,461 @@ export default function P1EventDetailPage() {
     totalAmountInPence += t.priceInPence * (quantities[t.id] || 0);
   });
 
+  const handleProceedToCheckout = () => {
+    if (totalTickets === 0) {
+      setError('Please select at least 1 ticket to book.');
+      return;
+    }
+    setError(null);
+    setShowCheckoutForm(true);
+    // Smooth scroll down to checkout form on mobile
+    setTimeout(() => {
+      document.getElementById('checkout-section')?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  };
+
   const handleBookingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!event) return;
 
     if (totalTickets === 0) {
-      setError('Please select at least 1 ticket to book.');
+      setError('Please select at least 1 ticket.');
       return;
     }
     if (!customer.fullName.trim()) {
-      setError('Please provide your name.');
+      setError('Please enter attendee full name.');
       return;
     }
     const cleanPhone = customer.phone.replace(/\D/g, '');
     if (cleanPhone.length < 10) {
-      setError('Please provide a valid 10-digit mobile number.');
+      setError('Please enter a valid 10-digit mobile phone number.');
       return;
     }
 
     setSubmitting(true);
     setError(null);
 
-    const items = Object.entries(quantities)
-      .filter(([_, qty]) => qty > 0)
-      .map(([tierId, quantity]) => ({ tierId, quantity }));
+    // Save profile for future fast checkouts
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(
+          'reserva_user_profile',
+          JSON.stringify({
+            name: customer.fullName.trim(),
+            phone: cleanPhone,
+            email: `${cleanPhone}@reserva.direct`,
+          })
+        );
+      } catch {}
+    }
 
-    const res = p1Storage.createBooking({
+    const itemsToBook = Object.entries(quantities)
+      .filter(([_, qty]) => qty > 0)
+      .map(([tierId, qty]) => ({ tierId, quantity: qty }));
+
+    const result = p1Storage.createBooking({
       eventId: event.id,
       customer: {
         fullName: customer.fullName.trim(),
         phone: cleanPhone,
       },
-      items,
+      items: itemsToBook,
     });
 
-    if (res.success && res.booking) {
-      router.push(`/pay/${res.booking.id}`);
-    } else {
-      setError(res.error || 'Failed to create booking.');
+    if (!result.success || !result.booking) {
+      setError(result.error || 'Failed to initialize booking.');
       setSubmitting(false);
+      return;
     }
+
+    // Direct redirect to payment page
+    router.push(`/pay/${result.booking.id}`);
   };
 
   if (isLoading && !event) {
     return (
-      <div className="py-20 text-center space-y-4">
-        <div className="w-10 h-10 border-2 border-[#FF6A1A] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-white/50">Loading event details...</p>
+      <div className="py-24 text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-[#6B1736] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-[#8E8E93]">Loading event experience...</p>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="py-20 text-center space-y-4">
-        <h2 className="text-xl font-bold text-white">Event Not Found</h2>
+      <div className="py-20 text-center space-y-4 bg-white rounded-3xl p-8 border border-[#F0E6E8] shadow-sm">
+        <h2 className="text-xl font-bold text-[#1A1A1A]">Event Not Found</h2>
+        <p className="text-xs text-[#666666]">
+          The event you are looking for might have ended or is no longer listed.
+        </p>
         <Link href="/">
-          <GlassButton variant="secondary">Back to Events</GlassButton>
+          <GlassButton variant="primary">Browse Events</GlassButton>
         </Link>
       </div>
     );
   }
 
-  const startDate = new Date(event.schedule.startsAt).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
+  const startDateFormatted = new Date(event.schedule.startsAt).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
-  const startTime = new Date(event.schedule.startsAt).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-  const endTime = new Date(event.schedule.endsAt).toLocaleTimeString('en-US', {
+  const startTimeFormatted = new Date(event.schedule.startsAt).toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
   });
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Top navigation bar */}
+    <div className="space-y-6 pb-20">
+      {/* Top Navigation Row */}
       <div className="flex items-center justify-between">
         <Link
           href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-white/60 hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#666666] hover:text-[#6B1736] transition-colors"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Back to All Events</span>
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Events</span>
         </Link>
 
-        <Link
-          href={`/organiser?edit=${event.id}`}
-          className="inline-flex items-center gap-1.5 text-xs text-[#FF9A45] hover:text-white px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:border-[#FF6A1A]/40 transition-all font-medium"
-        >
-          <Pencil className="w-3.5 h-3.5 text-[#FF9A45]" />
-          <span>Edit Event</span>
-        </Link>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            className="p-2 rounded-full bg-white border border-[#F0E6E8] text-[#4A4A4A] hover:bg-[#FFF5F7] transition-colors"
+            title="Share Event"
+          >
+            <Share2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={toggleSave}
+            className="p-2 rounded-full bg-white border border-[#F0E6E8] text-[#4A4A4A] hover:bg-[#FFF5F7] transition-colors"
+            title={isSaved ? 'Saved' : 'Save'}
+          >
+            <Heart
+              className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-[#666666]'}`}
+            />
+          </button>
+        </div>
       </div>
 
-      {/* Hero Banner */}
-      <GlassCard padding="none" className="relative overflow-hidden">
-        <div className="relative h-64 md:h-80 w-full">
-          <img src={event.posterUrl} alt={event.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/60 to-transparent" />
-          <div className="absolute top-4 left-4 flex gap-2">
-            <GlassBadge variant="accent">{event.category.replace('_', ' ')}</GlassBadge>
-            {event.isAgeRestricted && <GlassBadge variant="error">{event.minimumAge}+ Only</GlassBadge>}
+      {/* Hero Banner (Screen 6 reference) */}
+      <div className="relative rounded-3xl overflow-hidden h-64 sm:h-80 shadow-md border border-[#F0E6E8] bg-neutral-900">
+        <img
+          src={event.posterUrl}
+          alt={event.title}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+        <div className="absolute top-4 left-4 flex items-center gap-2">
+          <span className="px-3 py-1 rounded-full bg-[#6B1736] text-white text-xs font-bold shadow-md">
+            {event.category.replace('_', ' ')}
+          </span>
+          {event.featured && (
+            <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-medium">
+              Featured
+            </span>
+          )}
+        </div>
+
+        <div className="absolute bottom-4 left-4 right-4 text-white">
+          <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
+            {event.title}
+          </h1>
+          <p className="text-xs sm:text-sm text-white/80 mt-1 line-clamp-1">
+            {event.tagline || event.description}
+          </p>
+        </div>
+      </div>
+
+      {/* Event Metadata Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-[#F0E6E8] shadow-sm">
+          <div className="p-2.5 rounded-xl bg-[#FDF2F4] text-[#6B1736]">
+            <Calendar className="w-5 h-5" />
           </div>
-          <div className="absolute bottom-6 left-6 right-6 space-y-1.5">
-            <h1 className="text-2xl md:text-4xl font-extrabold text-white tracking-tight">{event.title}</h1>
-            {event.tagline && <p className="text-xs md:text-sm text-white/80 max-w-2xl">{event.tagline}</p>}
+          <div>
+            <span className="text-[10px] uppercase font-bold text-[#8E8E93] tracking-wider block">
+              Date & Time
+            </span>
+            <span className="text-xs font-bold text-[#1A1A1A] block">
+              {startDateFormatted}
+            </span>
+            <span className="text-xs text-[#666666]">{startTimeFormatted} onwards</span>
           </div>
         </div>
-      </GlassCard>
 
-      {/* Main Grid: Details + Ticket Booking */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Event details, timing & Google Maps link */}
-        <div className="md:col-span-6 space-y-5">
-          <GlassCard className="space-y-4">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Date & Venue</h3>
+        <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-[#F0E6E8] shadow-sm">
+          <div className="p-2.5 rounded-xl bg-[#FDF2F4] text-[#6B1736]">
+            <MapPin className="w-5 h-5" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold text-[#8E8E93] tracking-wider block">
+              Venue Location
+            </span>
+            <span className="text-xs font-bold text-[#1A1A1A] block">
+              {event.venue.name}
+            </span>
+            <span className="text-xs text-[#666666] truncate block max-w-xs">
+              {event.venue.address}, {event.venue.city}
+            </span>
+          </div>
+        </div>
+      </div>
 
-            <div className="space-y-3 text-xs">
-              <div className="flex items-start gap-2.5">
-                <Calendar className="w-4 h-4 text-[#FF9A45] shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-white">{startDate}</p>
-                  <p className="text-white/50">{startTime} to {endTime} ({event.schedule.timezone})</p>
-                </div>
+      {/* Tabs (About / Venue / Lineup) (Screen 6 reference) */}
+      <div className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-sm space-y-4">
+        <div className="flex items-center gap-2 border-b border-[#F0E6E8] pb-3">
+          {(['about', 'venue', 'lineup'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+                activeTab === tab
+                  ? 'bg-[#6B1736] text-white shadow-sm'
+                  : 'text-[#666666] hover:text-[#1A1A1A] hover:bg-[#FFF5F7]'
+              }`}
+            >
+              {tab === 'about' ? 'About Event' : tab === 'venue' ? 'Venue Details' : 'Lineup & Info'}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'about' && (
+          <div className="space-y-3 text-xs sm:text-sm text-[#4A4A4A] leading-relaxed">
+            <p className="whitespace-pre-line">{event.description}</p>
+            <div className="pt-3 flex flex-wrap gap-4 text-xs text-[#666666] border-t border-[#F0E6E8]">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>100% Verified Event</span>
               </div>
-
-              <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-[#FF9A45] shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-white">{event.venue.name}</p>
-                  <p className="text-white/50">{event.venue.address}, {event.venue.city}</p>
-                  {event.venue.googleMapsUrl && (
-                    <a
-                      href={event.venue.googleMapsUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[#FF9A45] hover:underline pt-1 text-[11px]"
-                    >
-                      <span>Open Location in Google Maps</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
-                </div>
+              <div className="flex items-center gap-1.5">
+                <TicketIcon className="w-4 h-4 text-[#6B1736]" />
+                <span>Instant Digital QR Ticket</span>
               </div>
-
-              {event.whatsappPhone && (
-                <div className="pt-2 border-t border-white/[0.06] flex items-center justify-between text-xs">
-                  <span className="text-white/50">Need Help?</span>
-                  <a
-                    href={buildWhatsAppLink(
-                      event.whatsappPhone,
-                      `Hi, I have an enquiry regarding "${event.title}".`
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-emerald-400 hover:underline inline-flex items-center gap-1 font-medium text-[11px]"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Chat with Organiser</span>
-                  </a>
-                </div>
-              )}
             </div>
-          </GlassCard>
+          </div>
+        )}
 
-          <GlassCard className="space-y-3">
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">About Event</h3>
-            <p className="text-xs text-white/70 leading-relaxed whitespace-pre-line">{event.description}</p>
-            {event.termsAndConditions && (
-              <div className="pt-3 border-t border-white/[0.06]">
-                <p className="text-[11px] text-white/50">{event.termsAndConditions}</p>
-              </div>
+        {activeTab === 'venue' && (
+          <div className="space-y-3 text-xs sm:text-sm text-[#4A4A4A]">
+            <h4 className="font-bold text-[#1A1A1A]">{event.venue.name}</h4>
+            <p>{event.venue.address}</p>
+            <p>
+              {event.venue.city}, {event.venue.state} - {event.venue.postalCode}
+            </p>
+            {event.venue.googleMapsUrl && (
+              <a
+                href={event.venue.googleMapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[#6B1736] hover:underline pt-1"
+              >
+                <span>Open in Google Maps</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
             )}
-          </GlassCard>
+          </div>
+        )}
+
+        {activeTab === 'lineup' && (
+          <div className="space-y-3 text-xs sm:text-sm text-[#4A4A4A]">
+            <p>Featuring international & national headliners, stage lasers, food courts and experiential zones.</p>
+            <div className="p-3.5 rounded-2xl bg-[#FFF5F7] border border-[#FCE7EC] space-y-1">
+              <span className="font-bold text-[#6B1736] block">Important Guidelines</span>
+              <ul className="list-disc pl-4 space-y-0.5 text-xs text-[#666666]">
+                <li>Please have your QR pass ready on WhatsApp or phone screen at the gate.</li>
+                <li>Outside food and beverages are not allowed inside the arena.</li>
+                <li>Re-entry is not permitted once scanned at entry.</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Select Tickets Section (Screen 7 reference) */}
+      <section className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-sm space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-[#1A1A1A]">Select Tickets</h2>
+          <p className="text-xs text-[#666666]">
+            Choose your preferred ticket category and quantity
+          </p>
         </div>
 
-        {/* Right Column: Select Tickets & Customer Info (NO EMAIL) */}
-        <div className="md:col-span-6">
-          <form onSubmit={handleBookingSubmit} className="space-y-5">
-            <GlassCard className="space-y-4">
-              <div className="flex items-center justify-between pb-2 border-b border-white/[0.08]">
-                <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#FF9A45]" />
-                  <span>Select Tickets</span>
-                </h3>
-              </div>
+        {error && (
+          <div className="p-3.5 rounded-2xl bg-red-50 border border-red-200 text-xs text-red-600 font-medium">
+            {error}
+          </div>
+        )}
 
-              {/* Tiers List */}
-              <div className="space-y-3">
-                {tiers.map((t) => {
-                  const qty = quantities[t.id] || 0;
-                  const available = Math.max(0, t.capacity - t.soldCount);
-                  const isSoldOut = available <= 0;
+        <div className="space-y-3">
+          {tiers.map((tier) => {
+            const qty = quantities[tier.id] || 0;
+            const remaining = tier.capacity - tier.soldCount;
+            const isSoldOut = remaining <= 0;
+            const maxAllowed = Math.min(tier.maxPerBooking || 6, remaining);
 
-                  return (
-                    <div
-                      key={t.id}
-                      className={`p-3.5 rounded-xl border transition-all ${
-                        qty > 0 ? 'bg-[#FF6A1A]/10 border-[#FF6A1A]/40' : 'bg-white/[0.02] border-white/[0.08]'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="space-y-0.5">
-                          <h4 className="text-sm font-bold text-white">{t.name}</h4>
-                          <p className="text-xs text-white/50">{t.description}</p>
-                          <p className="text-sm font-semibold text-[#FF9A45] pt-1">{formatINR(t.priceInPence)}</p>
-                        </div>
-
-                        {isSoldOut ? (
-                          <GlassBadge variant="error" size="sm">Sold Out</GlassBadge>
-                        ) : (
-                          <div className="flex items-center gap-2 bg-white/[0.05] p-1 rounded-lg border border-white/[0.08]">
-                            <button
-                              type="button"
-                              onClick={() => updateQty(t.id, -1, t.maxPerBooking)}
-                              disabled={qty === 0}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs disabled:opacity-30"
-                            >
-                              <Minus className="w-3 h-3" />
-                            </button>
-                            <span className="text-xs font-semibold text-white w-4 text-center">{qty}</span>
-                            <button
-                              type="button"
-                              onClick={() => updateQty(t.id, 1, available)}
-                              disabled={qty >= available}
-                              className="w-6 h-6 flex items-center justify-center rounded bg-white/[0.08] hover:bg-white/[0.15] text-white text-xs disabled:opacity-30"
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {t.perks && (
-                        <div className="mt-2.5 pt-2 border-t border-white/[0.04] flex flex-wrap gap-2 text-[10px] text-white/60">
-                          {t.perks.map((p, i) => (
-                            <span key={i} className="flex items-center gap-1">
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span>{p}</span>
-                            </span>
-                          ))}
-                        </div>
+            return (
+              <div
+                key={tier.id}
+                className={`p-4 rounded-2xl border transition-all ${
+                  qty > 0
+                    ? 'border-[#6B1736] bg-[#FFF5F7]/40 shadow-sm'
+                    : 'border-[#F0E6E8] bg-white'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-bold text-[#1A1A1A]">{tier.name}</h3>
+                      {remaining > 0 && remaining <= 20 && (
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                          {remaining} left!
+                        </span>
                       )}
                     </div>
-                  );
-                })}
-              </div>
+                    {tier.description && (
+                      <p className="text-xs text-[#666666] line-clamp-1">{tier.description}</p>
+                    )}
+                    <div className="text-sm font-extrabold text-[#6B1736]">
+                      {formatINR(tier.priceInPence)}
+                    </div>
+                  </div>
 
-              {/* Customer Contact Info: NAME AND MOBILE ONLY (NO EMAIL) */}
-              <div className="space-y-3 pt-3 border-t border-white/[0.08]">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-white/80 uppercase tracking-wider">
-                    Attendee Information
-                  </span>
-                  <span className="text-[10px] text-white/40">No registration needed</span>
+                  {/* Quantity Stepper (- 0 +) */}
+                  <div>
+                    {isSoldOut ? (
+                      <span className="px-3 py-1.5 text-xs font-bold text-[#8E8E93] bg-[#F4EBEE] rounded-xl">
+                        Sold Out
+                      </span>
+                    ) : (
+                      <div className="flex items-center gap-2 bg-[#FBF9FA] border border-[#E5D7DA] rounded-xl p-1">
+                        <button
+                          type="button"
+                          onClick={() => updateQty(tier.id, -1, maxAllowed)}
+                          disabled={qty <= 0}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-[#E5D7DA] text-[#1A1A1A] hover:bg-[#FFF5F7] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-6 text-center text-xs font-bold text-[#1A1A1A]">
+                          {qty}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateQty(tier.id, 1, maxAllowed)}
+                          disabled={qty >= maxAllowed}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#6B1736] text-white hover:bg-[#520F27] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              </div>
+            );
+          })}
+        </div>
 
-                <GlassInput
-                  label="Customer Full Name"
-                  placeholder="Enter full name"
+        {/* Total Summary Footer Bar */}
+        <div className="pt-4 border-t border-[#F0E6E8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-[#8E8E93] block">
+              Total ({totalTickets} {totalTickets === 1 ? 'Ticket' : 'Tickets'})
+            </span>
+            <span className="text-lg font-black text-[#1A1A1A]">
+              {formatINR(totalAmountInPence)}
+            </span>
+          </div>
+
+          <GlassButton
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleProceedToCheckout}
+            disabled={totalTickets === 0}
+            className="sm:w-auto w-full"
+          >
+            Continue to Checkout
+          </GlassButton>
+        </div>
+      </section>
+
+      {/* Attendee Details Form (Screen 8 reference) */}
+      {showCheckoutForm && (
+        <section
+          id="checkout-section"
+          className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-md space-y-4 animate-in fade-in"
+        >
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-full bg-[#6B1736] text-white text-xs font-bold flex items-center justify-center">
+                2
+              </span>
+              <h2 className="text-base font-bold text-[#1A1A1A]">Attendee Details</h2>
+            </div>
+            <p className="text-xs text-[#666666] pl-8">
+              Digital ticket pass will be delivered to this WhatsApp number
+            </p>
+          </div>
+
+          <form onSubmit={handleBookingSubmit} className="space-y-4 pl-0 sm:pl-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[#4A4A4A] block">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Vedik Reddy"
                   value={customer.fullName}
                   onChange={(e) => setCustomer({ ...customer, fullName: e.target.value })}
-                  required
+                  className="w-full px-4 py-3 rounded-xl border border-[#E5D7DA] text-xs text-[#1A1A1A] placeholder-[#8E8E93] focus:outline-none focus:border-[#6B1736] focus:ring-1 focus:ring-[#6B1736]/30"
                 />
-                <GlassInput
-                  label="Mobile Number (WhatsApp)"
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-[#4A4A4A] block">
+                  WhatsApp Mobile (+91)
+                </label>
+                <input
                   type="tel"
-                  placeholder="10-digit mobile number"
+                  required
+                  placeholder="e.g. 9876543210"
                   value={customer.phone}
                   onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                  helperText="QR ticket pass will be delivered to this WhatsApp number"
-                  required
+                  className="w-full px-4 py-3 rounded-xl border border-[#E5D7DA] text-xs text-[#1A1A1A] placeholder-[#8E8E93] focus:outline-none focus:border-[#6B1736] focus:ring-1 focus:ring-[#6B1736]/30"
                 />
               </div>
+            </div>
 
-              {/* Total & Action */}
-              <div className="pt-3 border-t border-white/[0.08] flex justify-between items-center text-sm font-bold text-white">
-                <span>Total Amount:</span>
-                <span className="text-[#FF9A45] text-lg">{formatINR(totalAmountInPence)}</span>
+            {/* Order Summary Card */}
+            <div className="p-4 rounded-2xl bg-[#FFF5F7] border border-[#FCE7EC] space-y-2">
+              <span className="text-[10px] uppercase font-bold text-[#6B1736] tracking-wider block">
+                Booking Summary
+              </span>
+              <div className="flex items-center justify-between text-xs text-[#1A1A1A]">
+                <span className="font-semibold">{event.title}</span>
+                <span className="font-bold">{totalTickets} Ticket(s)</span>
               </div>
+              <div className="flex items-center justify-between text-sm font-black text-[#1A1A1A] pt-1 border-t border-[#FCE7EC]">
+                <span>Total Payable</span>
+                <span className="text-[#6B1736]">{formatINR(totalAmountInPence)}</span>
+              </div>
+            </div>
 
-              {error && (
-                <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-xs text-red-200">
-                  {error}
-                </div>
-              )}
-
-              <GlassButton
-                type="submit"
-                variant="primary"
-                fullWidth
-                size="lg"
-                isLoading={submitting}
-                disabled={totalTickets === 0 || submitting}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  <span>Proceed to Payment ({formatINR(totalAmountInPence)})</span>
-                </div>
-              </GlassButton>
-
-              <p className="text-[11px] text-white/40 text-center flex items-center justify-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Direct UPI Deep Link & WhatsApp QR Confirmation</span>
-              </p>
-            </GlassCard>
+            <GlassButton
+              type="submit"
+              variant="primary"
+              size="lg"
+              fullWidth
+              isLoading={submitting}
+            >
+              Proceed to UPI Payment
+            </GlassButton>
           </form>
-        </div>
-      </div>
+        </section>
+      )}
     </div>
   );
 }
-

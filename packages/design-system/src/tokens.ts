@@ -1,25 +1,41 @@
 export const tokens = {
   colors: {
+    // Reserva Brand Palette (Burgundy / Rose / Clean Light)
+    reserva: {
+      primary: '#6B1736',
+      primaryHover: '#520F27',
+      primaryDark: '#3D0B1C',
+      accent: '#D93B68',
+      roseLight: '#FFF5F7',
+      rosePill: '#FDF2F4',
+      roseBorder: '#FCE7EC',
+      surface: '#FFFFFF',
+      surfaceSubtle: '#FBF9FA',
+      border: '#F0E6E8',
+      textPrimary: '#1A1A1A',
+      textSecondary: '#666666',
+      textMuted: '#8E8E93',
+    },
     oled: '#080808',
     charcoal: '#111111',
     surface: '#181818',
     surfaceSubtle: '#222222',
     accent: {
-      primary: '#FF6A1A',
-      glow: '#FF9A45',
-      dim: 'rgba(255, 106, 26, 0.15)',
+      primary: '#6B1736', // Reserva Burgundy
+      glow: '#D93B68',
+      dim: 'rgba(107, 23, 54, 0.12)',
     },
     text: {
-      primary: '#FFFFFF',
-      secondary: '#A3A3A3',
-      muted: '#666666',
+      primary: '#1A1A1A',
+      secondary: '#666666',
+      muted: '#8E8E93',
     },
     glass: {
-      bg: 'rgba(24, 24, 24, 0.65)',
-      bgLight: 'rgba(255, 255, 255, 0.04)',
-      border: 'rgba(255, 255, 255, 0.08)',
-      borderHover: 'rgba(255, 255, 255, 0.16)',
-      highlight: 'rgba(255, 255, 255, 0.12)',
+      bg: 'rgba(255, 255, 255, 0.90)',
+      bgLight: 'rgba(255, 245, 247, 0.70)',
+      border: 'rgba(240, 230, 232, 0.80)',
+      borderHover: 'rgba(107, 23, 54, 0.25)',
+      highlight: 'rgba(255, 255, 255, 0.60)',
     },
     semantic: {
       success: '#10B981',
@@ -38,7 +54,9 @@ export const tokens = {
     badge: '9999px',
   },
   shadows: {
-    glass: '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
-    glassOrange: '0 8px 32px 0 rgba(255, 106, 26, 0.15)',
+    card: '0 4px 20px 0 rgba(107, 23, 54, 0.06)',
+    cardHover: '0 8px 30px 0 rgba(107, 23, 54, 0.12)',
+    button: '0 4px 14px 0 rgba(107, 23, 54, 0.28)',
   },
 };
+

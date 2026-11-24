@@ -28,15 +28,15 @@ export const GlassButton: React.FC<GlassButtonProps> = ({
 
   const variantClasses = {
     primary:
-      'bg-gradient-to-r from-[#FF6A1A] to-[#FF9A45] text-white shadow-lg shadow-[#FF6A1A]/20 hover:shadow-[#FF6A1A]/40 border border-[#FF9A45]/30',
+      'bg-[#6B1736] hover:bg-[#520F27] text-white shadow-md shadow-[#6B1736]/20 border border-[#6B1736]/40',
     secondary:
-      'bg-white/[0.06] hover:bg-white/[0.10] text-white border border-white/10 backdrop-blur-md shadow-sm',
+      'bg-[#FFF5F7] hover:bg-[#FDF2F4] text-[#6B1736] border border-[#FCE7EC] shadow-sm',
     outline:
-      'bg-transparent hover:bg-white/[0.04] text-white/90 border border-white/20 hover:border-white/40 backdrop-blur-sm',
+      'bg-transparent hover:bg-[#FFF5F7] text-[#1A1A1A] border border-[#E2D4D7]',
     danger:
-      'bg-red-500/20 hover:bg-red-500/30 text-red-200 border border-red-500/30 backdrop-blur-md',
+      'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200',
     ghost:
-      'bg-transparent hover:bg-white/[0.05] text-white/80 hover:text-white',
+      'bg-transparent hover:bg-[#FFF5F7] text-[#4A4A4A] hover:text-[#6B1736]',
   };
 
   return (

@@ -13,7 +13,7 @@ export const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
     return (
       <div className="w-full space-y-1.5">
         {label && (
-          <label htmlFor={inputId} className="block text-xs font-medium text-white/70 tracking-wide uppercase">
+          <label htmlFor={inputId} className="block text-xs font-semibold text-[#1A1A1A] tracking-wide">
             {label}
           </label>
         )}
@@ -21,11 +21,11 @@ export const GlassInput = React.forwardRef<HTMLInputElement, GlassInputProps>(
           <input
             id={inputId}
             ref={ref}
-            className={`w-full rounded-xl bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/30 backdrop-blur-md border ${
+            className={`w-full rounded-xl bg-white px-4 py-3 text-sm text-[#1A1A1A] placeholder-[#8E8E93] border ${
               error
-                ? 'border-red-500/50 focus:border-red-500 focus:ring-1 focus:ring-red-500/50'
-                : 'border-white/[0.08] focus:border-[#FF6A1A]/50 focus:ring-1 focus:ring-[#FF6A1A]/50'
-            } outline-none transition-all duration-200 ${className}`}
+                ? 'border-red-500 focus:border-red-500 focus:ring-1 focus:ring-red-500/30'
+                : 'border-[#E5D7DA] focus:border-[#6B1736] focus:ring-1 focus:ring-[#6B1736]/30'
+            } outline-none transition-all duration-200 shadow-sm ${className}`}
             {...props}
           />
         </div>
