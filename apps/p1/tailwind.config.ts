@@ -9,36 +9,67 @@ const config: Config = {
     extend: {
       colors: {
         reserva: {
-          DEFAULT: '#6B1736',
-          dark: '#4E0F26',
-          deep: '#380B1C',
-          light: '#FFF5F7',
-          pill: '#FDF2F4',
-          border: '#F0E6E8',
-          subtle: '#FBF9FA',
-          accent: '#D93B68',
+          DEFAULT: '#742F42', // Warm Editorial Burgundy
+          dark: '#582130',
+          deep: '#171D2B', // Midnight Navy
+          light: '#FBF7F0',
+          pill: '#F4EBDD', // Warm Cream
+          border: '#E8DFD3',
+          subtle: '#FAF4EB',
+          accent: '#B64A38', // Terracotta
+          gold: '#D5B77B',   // Muted Gold
+          navy: '#171D2B',   // Midnight Navy
+          dusty: '#8293A0',  // Dusty Blue
+        },
+        cream: {
+          DEFAULT: '#F4EBDD',
+          light: '#FBF7F0',
+          dark: '#E8DFD3',
+        },
+        navy: {
+          DEFAULT: '#171D2B',
+          light: '#283145',
+        },
+        terracotta: {
+          DEFAULT: '#B64A38',
+          hover: '#9E3E2E',
+        },
+        burgundy: {
+          DEFAULT: '#742F42',
+          hover: '#5C2434',
+        },
+        gold: {
+          DEFAULT: '#D5B77B',
+        },
+        dusty: {
+          DEFAULT: '#8293A0',
         },
         oled: '#080808',
-        charcoal: '#111111',
+        charcoal: '#171D2B',
         surface: '#FFFFFF',
-        'surface-subtle': '#FBF9FA',
+        'surface-subtle': '#FBF7F0',
         accent: {
-          DEFAULT: '#6B1736',
-          glow: '#D93B68',
-          dim: 'rgba(107, 23, 54, 0.12)',
+          DEFAULT: '#742F42',
+          glow: '#B64A38',
+          dim: 'rgba(116, 47, 66, 0.12)',
         },
         grey: {
-          secondary: '#666666',
-          muted: '#8E8E93',
+          secondary: '#5C6470',
+          muted: '#8293A0',
         },
       },
       fontFamily: {
+        serif: [
+          '"DM Serif Display"',
+          'Playfair Display',
+          'Georgia',
+          'serif',
+        ],
         sans: [
-          'SF Pro Display',
+          '"Plus Jakarta Sans"',
+          'Manrope',
+          'Inter',
           '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
           'sans-serif',
         ],
       },

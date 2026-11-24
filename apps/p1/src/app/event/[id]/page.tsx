@@ -15,6 +15,7 @@ import {
   ArrowLeft,
   Share2,
   Heart,
+  Bookmark,
   Info,
   Users,
   Sparkles,
@@ -49,6 +50,7 @@ export default function ReservaEventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showCheckoutForm, setShowCheckoutForm] = useState(false);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState(0);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -155,10 +157,13 @@ export default function ReservaEventDetailPage() {
     }
     setError(null);
     setShowCheckoutForm(true);
-    // Smooth scroll down to checkout form on mobile
     setTimeout(() => {
       document.getElementById('checkout-section')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  const scrollToTickets = () => {
+    document.getElementById('tickets-section')?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const handleBookingSubmit = (e: React.FormEvent) => {
@@ -222,20 +227,20 @@ export default function ReservaEventDetailPage() {
   if (isLoading && !event) {
     return (
       <div className="py-24 text-center space-y-4">
-        <div className="w-10 h-10 border-2 border-[#6B1736] border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-xs text-[#8E8E93]">Loading event experience...</p>
+        <div className="w-10 h-10 border-2 border-[#742F42] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-xs text-[#8293A0]">Loading event experience...</p>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="py-20 text-center space-y-4 bg-white rounded-3xl p-8 border border-[#F0E6E8] shadow-sm">
-        <h2 className="text-xl font-bold text-[#1A1A1A]">Event Not Found</h2>
-        <p className="text-xs text-[#666666]">
+      <div className="py-20 text-center space-y-4 bg-[#FFFDF9] rounded-3xl p-8 border border-[#E8DCCB] shadow-sm">
+        <h2 className="font-serif text-2xl font-bold text-[#171D2B]">Event Not Found</h2>
+        <p className="text-xs text-[#5A626A]">
           The event you are looking for might have ended or is no longer listed.
         </p>
-        <Link href="/">
+        <Link href="/explore">
           <GlassButton variant="primary">Browse Events</GlassButton>
         </Link>
       </div>
@@ -253,114 +258,170 @@ export default function ReservaEventDetailPage() {
     minute: '2-digit',
   });
 
+  // Calculate pricing range
+  const tierPrices = tiers.filter((t) => t.status === 'ACTIVE').map((t) => t.priceInPence);
+  const minPrice = tierPrices.length > 0 ? Math.min(...tierPrices) : 0;
+  const maxPrice = tierPrices.length > 0 ? Math.max(...tierPrices) : 0;
+
+  // Gallery photos
+  const gallery = [
+    event.posterUrl,
+    'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80',
+    'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=600&q=80',
+  ];
+
   return (
-    <div className="space-y-6 pb-20">
-      {/* Top Navigation Row */}
-      <div className="flex items-center justify-between">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#666666] hover:text-[#6B1736] transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Events</span>
-        </Link>
+    <div className="space-y-8 pb-20">
+      {/* Breadcrumb Navigation Row */}
+      <div className="flex items-center justify-between text-xs text-[#5A626A] border-b border-[#E8DCCB] pb-3">
+        <div className="flex items-center gap-2">
+          <Link href="/explore" className="hover:text-[#742F42] transition-colors flex items-center gap-1 font-medium">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Events</span>
+          </Link>
+          <span>›</span>
+          <span className="capitalize">{event.category.toLowerCase().replace('_', ' ')}</span>
+          <span>›</span>
+          <span className="font-bold text-[#171D2B] truncate max-w-[200px]">{event.title}</span>
+        </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={handleShare}
-            className="p-2 rounded-full bg-white border border-[#F0E6E8] text-[#4A4A4A] hover:bg-[#FFF5F7] transition-colors"
+            className="p-2 rounded-full bg-[#FFFDF9] border border-[#E8DCCB] text-[#171D2B] hover:bg-[#F4EBDD] transition-colors"
             title="Share Event"
           >
-            <Share2 className="w-4 h-4" />
+            <Share2 className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={toggleSave}
-            className="p-2 rounded-full bg-white border border-[#F0E6E8] text-[#4A4A4A] hover:bg-[#FFF5F7] transition-colors"
-            title={isSaved ? 'Saved' : 'Save'}
+            className="p-2 rounded-full bg-[#FFFDF9] border border-[#E8DCCB] text-[#171D2B] hover:bg-[#F4EBDD] transition-colors"
+            title={isSaved ? 'Bookmarked' : 'Bookmark'}
           >
-            <Heart
-              className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-[#666666]'}`}
+            <Bookmark
+              className={`w-3.5 h-3.5 ${isSaved ? 'fill-[#B64A38] text-[#B64A38]' : 'text-[#171D2B]'}`}
             />
           </button>
         </div>
       </div>
 
-      {/* Hero Banner (Screen 6 reference) */}
-      <div className="relative rounded-3xl overflow-hidden h-64 sm:h-80 shadow-md border border-[#F0E6E8] bg-neutral-900">
-        <img
-          src={event.posterUrl}
-          alt={event.title}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+      {/* Hero Showcase: Multi-Thumbnail + Large Display + Right Details matching Mockup */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Left Side: Vertical Thumbnails + Large Hero Photo */}
+        <div className="lg:col-span-7 flex flex-col sm:flex-row gap-4">
+          {/* Thumbnails strip */}
+          <div className="flex sm:flex-col gap-2.5 order-2 sm:order-1 overflow-x-auto pb-2 sm:pb-0">
+            {gallery.map((photoUrl, idx) => (
+              <button
+                key={idx}
+                onClick={() => setSelectedPhotoIndex(idx)}
+                className={`relative w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-2 transition-all flex-shrink-0 ${
+                  selectedPhotoIndex === idx
+                    ? 'border-[#742F42] shadow-md scale-[1.02]'
+                    : 'border-[#E8DCCB] opacity-70 hover:opacity-100'
+                }`}
+              >
+                <img src={photoUrl} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
 
-        <div className="absolute top-4 left-4 flex items-center gap-2">
-          <span className="px-3 py-1 rounded-full bg-[#6B1736] text-white text-xs font-bold shadow-md">
-            {event.category.replace('_', ' ')}
-          </span>
-          {event.featured && (
-            <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-medium">
-              Featured
-            </span>
-          )}
+          {/* Main Hero Photo */}
+          <div className="relative flex-1 rounded-3xl overflow-hidden h-72 sm:h-96 border border-[#E8DCCB] bg-neutral-900 shadow-[0_4px_20px_rgba(23,29,43,0.06)] order-1 sm:order-2">
+            <img
+              src={gallery[selectedPhotoIndex]}
+              alt={event.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+            {/* Bookmark button top right */}
+            <button
+              onClick={toggleSave}
+              className="absolute top-4 right-4 p-2.5 rounded-full bg-white/90 hover:bg-white text-[#171D2B] shadow-md backdrop-blur-sm transition-all"
+            >
+              <Bookmark
+                className={`w-4 h-4 ${isSaved ? 'fill-[#B64A38] text-[#B64A38]' : 'text-[#171D2B]'}`}
+              />
+            </button>
+          </div>
         </div>
 
-        <div className="absolute bottom-4 left-4 right-4 text-white">
-          <h1 className="text-xl sm:text-3xl font-extrabold tracking-tight">
+        {/* Right Side: Event Summary, Dates, Venue, Price, and CTA matching Mockup */}
+        <div className="lg:col-span-5 space-y-6 bg-[#FFFDF9] p-6 sm:p-7 rounded-3xl border border-[#E8DCCB] shadow-[0_2px_12px_rgba(23,29,43,0.03)]">
+          {/* Category Pill */}
+          <div>
+            <span className="px-3 py-1 rounded-full bg-[#B64A38]/10 text-[#B64A38] text-xs font-bold uppercase tracking-wider border border-[#B64A38]/20">
+              {event.category.replace('_', ' ')}
+            </span>
+          </div>
+
+          {/* Title */}
+          <h1 className="font-serif text-2xl sm:text-3xl font-extrabold text-[#171D2B] tracking-tight leading-tight">
             {event.title}
           </h1>
-          <p className="text-xs sm:text-sm text-white/80 mt-1 line-clamp-1">
-            {event.tagline || event.description}
-          </p>
+
+          {/* Date, Time & Venue */}
+          <div className="space-y-3 pt-2 border-t border-[#E8DCCB]">
+            <div className="flex items-center gap-2.5 text-xs text-[#171D2B]">
+              <Calendar className="w-4 h-4 text-[#B64A38]" />
+              <span className="font-bold">{startDateFormatted}</span>
+              <span className="text-[#8293A0]">•</span>
+              <span className="text-[#5A626A]">{startTimeFormatted} onwards</span>
+            </div>
+
+            <div className="flex items-start gap-2.5 text-xs text-[#171D2B]">
+              <MapPin className="w-4 h-4 text-[#B64A38] flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold block">{event.venue.name}</span>
+                <span className="text-[#5A626A] block text-[11px]">{event.venue.address}, {event.venue.city}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Price Range */}
+          <div className="pt-3 border-t border-[#E8DCCB] flex items-baseline justify-between">
+            <span className="text-xs uppercase font-bold text-[#8293A0]">Price Range</span>
+            <span className="text-xl sm:text-2xl font-serif font-black text-[#171D2B]">
+              {minPrice === maxPrice
+                ? formatINR(minPrice)
+                : `${formatINR(minPrice)} - ${formatINR(maxPrice)}`}
+            </span>
+          </div>
+
+          {/* Book Tickets CTA Buttons */}
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={scrollToTickets}
+              className="flex-1 py-3.5 px-6 rounded-xl bg-[#742F42] hover:bg-[#5E2635] text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all text-center"
+            >
+              Book Tickets
+            </button>
+            <button
+              onClick={toggleSave}
+              className="p-3.5 rounded-xl border border-[#E8DCCB] bg-white hover:bg-[#F4EBDD] text-[#171D2B] transition-colors"
+              title="Save Event"
+            >
+              <Heart
+                className={`w-4 h-4 ${isSaved ? 'fill-[#B64A38] text-[#B64A38]' : 'text-[#171D2B]'}`}
+              />
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Event Metadata Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-[#F0E6E8] shadow-sm">
-          <div className="p-2.5 rounded-xl bg-[#FDF2F4] text-[#6B1736]">
-            <Calendar className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-[#8E8E93] tracking-wider block">
-              Date & Time
-            </span>
-            <span className="text-xs font-bold text-[#1A1A1A] block">
-              {startDateFormatted}
-            </span>
-            <span className="text-xs text-[#666666]">{startTimeFormatted} onwards</span>
-          </div>
-        </div>
-
-        <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-[#F0E6E8] shadow-sm">
-          <div className="p-2.5 rounded-xl bg-[#FDF2F4] text-[#6B1736]">
-            <MapPin className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="text-[10px] uppercase font-bold text-[#8E8E93] tracking-wider block">
-              Venue Location
-            </span>
-            <span className="text-xs font-bold text-[#1A1A1A] block">
-              {event.venue.name}
-            </span>
-            <span className="text-xs text-[#666666] truncate block max-w-xs">
-              {event.venue.address}, {event.venue.city}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs (About / Venue / Lineup) (Screen 6 reference) */}
-      <div className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-sm space-y-4">
-        <div className="flex items-center gap-2 border-b border-[#F0E6E8] pb-3">
+      {/* Tabs (About / Venue / Lineup) */}
+      <div className="bg-[#FFFDF9] rounded-3xl p-6 border border-[#E8DCCB] shadow-sm space-y-4">
+        <div className="flex items-center gap-3 border-b border-[#E8DCCB] pb-3">
           {(['about', 'venue', 'lineup'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
                 activeTab === tab
-                  ? 'bg-[#6B1736] text-white shadow-sm'
-                  : 'text-[#666666] hover:text-[#1A1A1A] hover:bg-[#FFF5F7]'
+                  ? 'bg-[#742F42] text-white shadow-sm'
+                  : 'text-[#5A626A] hover:text-[#171D2B] hover:bg-[#F4EBDD]'
               }`}
             >
               {tab === 'about' ? 'About Event' : tab === 'venue' ? 'Venue Details' : 'Lineup & Info'}
@@ -369,15 +430,15 @@ export default function ReservaEventDetailPage() {
         </div>
 
         {activeTab === 'about' && (
-          <div className="space-y-3 text-xs sm:text-sm text-[#4A4A4A] leading-relaxed">
+          <div className="space-y-3 text-xs sm:text-sm text-[#5A626A] leading-relaxed">
             <p className="whitespace-pre-line">{event.description}</p>
-            <div className="pt-3 flex flex-wrap gap-4 text-xs text-[#666666] border-t border-[#F0E6E8]">
+            <div className="pt-3 flex flex-wrap gap-4 text-xs text-[#5A626A] border-t border-[#E8DCCB]">
               <div className="flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-600" />
                 <span>100% Verified Event</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <TicketIcon className="w-4 h-4 text-[#6B1736]" />
+                <TicketIcon className="w-4 h-4 text-[#742F42]" />
                 <span>Instant Digital QR Ticket</span>
               </div>
             </div>
@@ -385,8 +446,8 @@ export default function ReservaEventDetailPage() {
         )}
 
         {activeTab === 'venue' && (
-          <div className="space-y-3 text-xs sm:text-sm text-[#4A4A4A]">
-            <h4 className="font-bold text-[#1A1A1A]">{event.venue.name}</h4>
+          <div className="space-y-3 text-xs sm:text-sm text-[#5A626A]">
+            <h4 className="font-bold text-[#171D2B]">{event.venue.name}</h4>
             <p>{event.venue.address}</p>
             <p>
               {event.venue.city}, {event.venue.state} - {event.venue.postalCode}
@@ -396,7 +457,7 @@ export default function ReservaEventDetailPage() {
                 href={event.venue.googleMapsUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-[#6B1736] hover:underline pt-1"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-[#742F42] hover:underline pt-1"
               >
                 <span>Open in Google Maps</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -406,11 +467,11 @@ export default function ReservaEventDetailPage() {
         )}
 
         {activeTab === 'lineup' && (
-          <div className="space-y-3 text-xs sm:text-sm text-[#4A4A4A]">
+          <div className="space-y-3 text-xs sm:text-sm text-[#5A626A]">
             <p>Featuring international & national headliners, stage lasers, food courts and experiential zones.</p>
-            <div className="p-3.5 rounded-2xl bg-[#FFF5F7] border border-[#FCE7EC] space-y-1">
-              <span className="font-bold text-[#6B1736] block">Important Guidelines</span>
-              <ul className="list-disc pl-4 space-y-0.5 text-xs text-[#666666]">
+            <div className="p-3.5 rounded-2xl bg-[#F4EBDD]/50 border border-[#E8DCCB] space-y-1">
+              <span className="font-bold text-[#742F42] block">Important Guidelines</span>
+              <ul className="list-disc pl-4 space-y-0.5 text-xs text-[#5A626A]">
                 <li>Please have your QR pass ready on WhatsApp or phone screen at the gate.</li>
                 <li>Outside food and beverages are not allowed inside the arena.</li>
                 <li>Re-entry is not permitted once scanned at entry.</li>
@@ -420,11 +481,11 @@ export default function ReservaEventDetailPage() {
         )}
       </div>
 
-      {/* Select Tickets Section (Screen 7 reference) */}
-      <section className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-sm space-y-4">
+      {/* Select Tickets Section */}
+      <section id="tickets-section" className="bg-[#FFFDF9] rounded-3xl p-6 border border-[#E8DCCB] shadow-sm space-y-4">
         <div>
-          <h2 className="text-base font-bold text-[#1A1A1A]">Select Tickets</h2>
-          <p className="text-xs text-[#666666]">
+          <h2 className="font-serif text-xl font-bold text-[#171D2B]">Select Tickets</h2>
+          <p className="text-xs text-[#5A626A]">
             Choose your preferred ticket category and quantity
           </p>
         </div>
@@ -447,24 +508,24 @@ export default function ReservaEventDetailPage() {
                 key={tier.id}
                 className={`p-4 rounded-2xl border transition-all ${
                   qty > 0
-                    ? 'border-[#6B1736] bg-[#FFF5F7]/40 shadow-sm'
-                    : 'border-[#F0E6E8] bg-white'
+                    ? 'border-[#742F42] bg-[#F4EBDD]/30 shadow-sm'
+                    : 'border-[#E8DCCB] bg-white'
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="space-y-1 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-[#1A1A1A]">{tier.name}</h3>
+                      <h3 className="text-sm font-bold text-[#171D2B]">{tier.name}</h3>
                       {remaining > 0 && remaining <= 20 && (
-                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                           {remaining} left!
                         </span>
                       )}
                     </div>
                     {tier.description && (
-                      <p className="text-xs text-[#666666] line-clamp-1">{tier.description}</p>
+                      <p className="text-xs text-[#5A626A] line-clamp-1">{tier.description}</p>
                     )}
-                    <div className="text-sm font-extrabold text-[#6B1736]">
+                    <div className="text-sm font-extrabold text-[#742F42]">
                       {formatINR(tier.priceInPence)}
                     </div>
                   </div>
@@ -472,27 +533,27 @@ export default function ReservaEventDetailPage() {
                   {/* Quantity Stepper (- 0 +) */}
                   <div>
                     {isSoldOut ? (
-                      <span className="px-3 py-1.5 text-xs font-bold text-[#8E8E93] bg-[#F4EBEE] rounded-xl">
+                      <span className="px-3 py-1.5 text-xs font-bold text-[#8293A0] bg-[#F4EBDD] rounded-xl">
                         Sold Out
                       </span>
                     ) : (
-                      <div className="flex items-center gap-2 bg-[#FBF9FA] border border-[#E5D7DA] rounded-xl p-1">
+                      <div className="flex items-center gap-2 bg-[#FFFDF9] border border-[#E8DCCB] rounded-xl p-1">
                         <button
                           type="button"
                           onClick={() => updateQty(tier.id, -1, maxAllowed)}
                           disabled={qty <= 0}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-[#E5D7DA] text-[#1A1A1A] hover:bg-[#FFF5F7] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-[#E8DCCB] text-[#171D2B] hover:bg-[#F4EBDD] disabled:opacity-30 disabled:pointer-events-none transition-colors"
                         >
                           <Minus className="w-3.5 h-3.5" />
                         </button>
-                        <span className="w-6 text-center text-xs font-bold text-[#1A1A1A]">
+                        <span className="w-6 text-center text-xs font-bold text-[#171D2B]">
                           {qty}
                         </span>
                         <button
                           type="button"
                           onClick={() => updateQty(tier.id, 1, maxAllowed)}
                           disabled={qty >= maxAllowed}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#6B1736] text-white hover:bg-[#520F27] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#742F42] text-white hover:bg-[#5E2635] disabled:opacity-30 disabled:pointer-events-none transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
@@ -506,26 +567,24 @@ export default function ReservaEventDetailPage() {
         </div>
 
         {/* Total Summary Footer Bar */}
-        <div className="pt-4 border-t border-[#F0E6E8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="pt-4 border-t border-[#E8DCCB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <span className="text-[10px] uppercase font-bold text-[#8E8E93] block">
+            <span className="text-[10px] uppercase font-bold text-[#8293A0] block">
               Total ({totalTickets} {totalTickets === 1 ? 'Ticket' : 'Tickets'})
             </span>
-            <span className="text-lg font-black text-[#1A1A1A]">
+            <span className="text-lg font-black text-[#171D2B]">
               {formatINR(totalAmountInPence)}
             </span>
           </div>
 
-          <GlassButton
+          <button
             type="button"
-            variant="primary"
-            size="md"
             onClick={handleProceedToCheckout}
             disabled={totalTickets === 0}
-            className="sm:w-auto w-full"
+            className="py-3 px-6 rounded-xl bg-[#742F42] hover:bg-[#5E2635] text-white text-xs font-bold shadow-md disabled:opacity-40 disabled:pointer-events-none transition-all sm:w-auto w-full"
           >
             Continue to Checkout
-          </GlassButton>
+          </button>
         </div>
       </section>
 
@@ -533,73 +592,84 @@ export default function ReservaEventDetailPage() {
       {showCheckoutForm && (
         <section
           id="checkout-section"
-          className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-md space-y-4 animate-in fade-in"
+          className="bg-[#FFFDF9] rounded-3xl p-6 border border-[#E8DCCB] shadow-md space-y-4 animate-in fade-in"
         >
           <div>
             <div className="flex items-center gap-2">
-              <span className="w-6 h-6 rounded-full bg-[#6B1736] text-white text-xs font-bold flex items-center justify-center">
+              <span className="w-6 h-6 rounded-full bg-[#742F42] text-white text-xs font-bold flex items-center justify-center">
                 2
               </span>
-              <h2 className="text-base font-bold text-[#1A1A1A]">Attendee Details</h2>
+              <h2 className="font-serif text-lg font-bold text-[#171D2B]">Attendee Details</h2>
             </div>
-            <p className="text-xs text-[#666666] pl-8">
+            <p className="text-xs text-[#5A626A] pl-8">
               Digital ticket pass will be delivered to this WhatsApp number
             </p>
           </div>
 
           <form onSubmit={handleBookingSubmit} className="space-y-4 pl-0 sm:pl-8">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#4A4A4A] block">Full Name</label>
+              <div>
+                <label className="text-[11px] font-bold text-[#171D2B] uppercase tracking-wider block mb-1">
+                  Full Name *
+                </label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Vedik Reddy"
                   value={customer.fullName}
-                  onChange={(e) => setCustomer({ ...customer, fullName: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-[#E5D7DA] text-xs text-[#1A1A1A] placeholder-[#8E8E93] focus:outline-none focus:border-[#6B1736] focus:ring-1 focus:ring-[#6B1736]/30"
+                  onChange={(e) => setCustomer((prev) => ({ ...prev, fullName: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl border border-[#E8DCCB] bg-white text-xs text-[#171D2B] placeholder-[#8293A0] focus:outline-none focus:border-[#742F42]"
                 />
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[#4A4A4A] block">
-                  WhatsApp Mobile (+91)
+              <div>
+                <label className="text-[11px] font-bold text-[#171D2B] uppercase tracking-wider block mb-1">
+                  WhatsApp Mobile Number *
                 </label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. 9876543210"
-                  value={customer.phone}
-                  onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
-                  className="w-full px-4 py-3 rounded-xl border border-[#E5D7DA] text-xs text-[#1A1A1A] placeholder-[#8E8E93] focus:outline-none focus:border-[#6B1736] focus:ring-1 focus:ring-[#6B1736]/30"
-                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-[#8293A0]">
+                    +91
+                  </span>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    placeholder="9876543210"
+                    value={customer.phone}
+                    onChange={(e) => setCustomer((prev) => ({ ...prev, phone: e.target.value }))}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-[#E8DCCB] bg-white text-xs text-[#171D2B] placeholder-[#8293A0] focus:outline-none focus:border-[#742F42]"
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Order Summary Card */}
-            <div className="p-4 rounded-2xl bg-[#FFF5F7] border border-[#FCE7EC] space-y-2">
-              <span className="text-[10px] uppercase font-bold text-[#6B1736] tracking-wider block">
-                Booking Summary
-              </span>
-              <div className="flex items-center justify-between text-xs text-[#1A1A1A]">
-                <span className="font-semibold">{event.title}</span>
-                <span className="font-bold">{totalTickets} Ticket(s)</span>
+            <div className="p-4 rounded-2xl bg-[#F4EBDD]/40 border border-[#E8DCCB] flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-[#171D2B] block">Direct UPI & Fast Passes</span>
+                <span className="text-[11px] text-[#5A626A] block">
+                  Scan and pay directly to organizer with 0% hidden gateway commission.
+                </span>
               </div>
-              <div className="flex items-center justify-between text-sm font-black text-[#1A1A1A] pt-1 border-t border-[#FCE7EC]">
-                <span>Total Payable</span>
-                <span className="text-[#6B1736]">{formatINR(totalAmountInPence)}</span>
-              </div>
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
             </div>
 
-            <GlassButton
+            <button
               type="submit"
-              variant="primary"
-              size="lg"
-              fullWidth
-              isLoading={submitting}
+              disabled={submitting}
+              className="w-full py-4 rounded-xl bg-[#742F42] hover:bg-[#5E2635] text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2"
             >
-              Proceed to UPI Payment
-            </GlassButton>
+              {submitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Creating Booking Pass...</span>
+                </>
+              ) : (
+                <>
+                  <span>Proceed to Payment</span>
+                  <span>({formatINR(totalAmountInPence)})</span>
+                </>
+              )}
+            </button>
           </form>
         </section>
       )}

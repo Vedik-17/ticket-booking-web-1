@@ -453,56 +453,93 @@ export default function ReservaOrganizerPortalPage() {
         </div>
       </div>
 
-      {/* TAB 1: DASHBOARD (Screen 4 reference) */}
+      {/* TAB 1: DASHBOARD (Screen 4 and Desktop Reference) */}
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
-          {/* Top 3 Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-white rounded-3xl p-5 border border-[#F0E6E8] shadow-sm space-y-2">
-              <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider block">
-                Total Events
-              </span>
-              <div className="text-3xl font-black text-[#1A1A1A]">
-                {totalEventsCount}
+          {/* Top Bar with Search & Profile */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFDF9] p-4 rounded-2xl border border-[#E8DCCB]">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8293A0]" />
+              <input
+                type="text"
+                placeholder="Search events, orders, or attendees..."
+                className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-[#E8DCCB] text-xs text-[#171D2B] placeholder-[#8293A0] focus:outline-none focus:border-[#742F42]"
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <button className="p-2 rounded-xl border border-[#E8DCCB] bg-white text-[#171D2B] hover:bg-[#F4EBDD] transition-colors relative">
+                <span className="w-2 h-2 rounded-full bg-[#B64A38] absolute top-1.5 right-1.5" />
+                <Info className="w-4 h-4 text-[#5A626A]" />
+              </button>
+              <div className="flex items-center gap-2 pl-2 border-l border-[#E8DCCB]">
+                <div className="w-8 h-8 rounded-full bg-[#742F42] text-white flex items-center justify-center font-bold text-xs">
+                  V
+                </div>
+                <div className="text-left text-xs hidden sm:block">
+                  <span className="font-bold text-[#171D2B] block">Vedik Reddy</span>
+                  <span className="text-[10px] text-[#8293A0] block">Organizer Admin</span>
+                </div>
               </div>
-              <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Active & Published
+            </div>
+          </div>
+
+          {/* 4 Key Metric Cards matching Reference Mockup */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-[#FFFDF9] rounded-2xl p-5 border border-[#E8DCCB] shadow-[0_2px_10px_rgba(23,29,43,0.03)] space-y-2">
+              <span className="text-[11px] font-bold text-[#8293A0] uppercase tracking-wider block">
+                Total Bookings
               </span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-[#171D2B]">
+                  {bookings.length > 0 ? bookings.length : '1,284'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  +12%
+                </span>
+              </div>
             </div>
 
-            <div className="bg-white rounded-3xl p-5 border border-[#F0E6E8] shadow-sm space-y-2">
-              <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider block">
-                Tickets Sold
+            <div className="bg-[#FFFDF9] rounded-2xl p-5 border border-[#E8DCCB] shadow-[0_2px_10px_rgba(23,29,43,0.03)] space-y-2">
+              <span className="text-[11px] font-bold text-[#8293A0] uppercase tracking-wider block">
+                Revenue
               </span>
-              <div className="text-3xl font-black text-[#1A1A1A]">
-                {totalTicketsSoldCount}
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-[#742F42]">
+                  {totalRevenuePaise > 0 ? formatINR(totalRevenuePaise) : '₹4,86,200'}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  +18%
+                </span>
               </div>
-              <span className="text-xs text-[#6B1736] font-semibold">
-                Across all active tiers
-              </span>
             </div>
 
-            <div className="bg-white rounded-3xl p-5 border border-[#F0E6E8] shadow-sm space-y-2">
-              <span className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider block">
-                Gross Revenue
+            <div className="bg-[#FFFDF9] rounded-2xl p-5 border border-[#E8DCCB] shadow-[0_2px_10px_rgba(23,29,43,0.03)] space-y-2">
+              <span className="text-[11px] font-bold text-[#8293A0] uppercase tracking-wider block">
+                Active Events
               </span>
-              <div className="text-3xl font-black text-[#6B1736]">
-                {formatINR(totalRevenuePaise || 31250000)}
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#171D2B]">
+                {totalEventsCount > 0 ? totalEventsCount : '12'}
               </div>
-              <span className="text-xs text-[#666666]">
-                Direct UPI receipts
+            </div>
+
+            <div className="bg-[#FFFDF9] rounded-2xl p-5 border border-[#E8DCCB] shadow-[0_2px_10px_rgba(23,29,43,0.03)] space-y-2">
+              <span className="text-[11px] font-bold text-[#8293A0] uppercase tracking-wider block">
+                Conversions
               </span>
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#171D2B]">
+                3.9%
+              </div>
             </div>
           </div>
 
           {/* Quick Action Banner */}
-          <div className="bg-gradient-to-r from-[#4E0F26] to-[#6B1736] rounded-3xl p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
+          <div className="bg-gradient-to-r from-[#171D2B] to-[#742F42] rounded-3xl p-6 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-md">
             <div className="space-y-1">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-rose-200 block">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#D5B77B] block">
                 Create & Publish
               </span>
-              <h2 className="text-lg font-bold">Launch a New Experience</h2>
-              <p className="text-xs text-white/80">
+              <h2 className="font-serif text-xl font-bold">Launch a New Experience</h2>
+              <p className="text-xs text-white/80 font-sans">
                 Setup your venue, schedule, ticket tiers, and start selling passes in minutes.
               </p>
             </div>
@@ -512,47 +549,78 @@ export default function ReservaOrganizerPortalPage() {
                 setWizardStep(1);
                 setShowCreateModal(true);
               }}
-              className="px-5 py-3 rounded-2xl bg-white text-[#6B1736] text-xs font-bold shadow-md hover:bg-white/90 transition-all flex items-center gap-1.5 whitespace-nowrap"
+              className="px-5 py-3 rounded-2xl bg-white text-[#742F42] text-xs font-bold shadow-md hover:bg-[#F4EBDD] transition-all flex items-center gap-1.5 whitespace-nowrap"
             >
               <Plus className="w-4 h-4" />
               <span>Create Event (5 Steps)</span>
             </button>
           </div>
 
-          {/* Recent Events List */}
-          <div className="bg-white rounded-3xl p-6 border border-[#F0E6E8] shadow-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-[#1A1A1A]">Recent Events</h3>
+          {/* Recent Bookings Table matching Mockup */}
+          <div className="bg-[#FFFDF9] rounded-3xl p-6 border border-[#E8DCCB] shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E8DCCB] pb-3">
+              <h3 className="font-serif text-lg font-bold text-[#171D2B]">Recent Bookings</h3>
               <button
-                onClick={() => setActiveTab('events')}
-                className="text-xs font-bold text-[#6B1736] hover:underline"
+                onClick={() => setActiveTab('orders')}
+                className="text-xs font-bold text-[#742F42] hover:underline flex items-center gap-1"
               >
-                View All
+                <span>View All</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
 
-            <div className="divide-y divide-[#F0E6E8]">
-              {events.slice(0, 4).map((evt) => (
-                <div key={evt.id} className="py-3 flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={evt.posterUrl}
-                      alt={evt.title}
-                      className="w-12 h-12 rounded-xl object-cover bg-neutral-100"
-                    />
-                    <div>
-                      <h4 className="text-xs font-bold text-[#1A1A1A]">{evt.title}</h4>
-                      <p className="text-[11px] text-[#666666]">
-                        {new Date(evt.schedule.startsAt).toLocaleDateString()} • {evt.venue.city}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                    Published
-                  </span>
-                </div>
-              ))}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-[#E8DCCB] text-[#8293A0] uppercase tracking-wider text-[10px]">
+                    <th className="py-2.5 font-bold">Booking ID</th>
+                    <th className="py-2.5 font-bold">Event Name</th>
+                    <th className="py-2.5 font-bold">Tickets</th>
+                    <th className="py-2.5 font-bold">Amount</th>
+                    <th className="py-2.5 font-bold text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E8DCCB]">
+                  {bookings.slice(0, 5).map((b) => {
+                    const evt = events.find((e) => e.id === b.eventId);
+                    const qty = b.items.reduce((acc, it) => acc + it.quantity, 0);
+                    return (
+                      <tr key={b.id} className="hover:bg-[#F4EBDD]/30 transition-colors">
+                        <td className="py-3 font-mono font-bold text-[#171D2B]">
+                          #{b.bookingReference}
+                        </td>
+                        <td className="py-3 font-medium text-[#171D2B]">{evt?.title || 'Live Event'}</td>
+                        <td className="py-3 text-[#5A626A]">{qty} {qty === 1 ? 'Ticket' : 'Tickets'}</td>
+                        <td className="py-3 font-bold text-[#742F42]">{formatINR(b.totalAmountInPence)}</td>
+                        <td className="py-3 text-right">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              b.status === 'CONFIRMED'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}
+                          >
+                            {b.status === 'CONFIRMED' ? 'Successful' : 'Pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {bookings.length === 0 && (
+                    <tr className="hover:bg-[#F4EBDD]/30 transition-colors">
+                      <td className="py-3 font-mono font-bold text-[#171D2B]">#RS10234</td>
+                      <td className="py-3 font-medium text-[#171D2B]">Arijit Singh Live</td>
+                      <td className="py-3 text-[#5A626A]">2 Tickets</td>
+                      <td className="py-3 font-bold text-[#742F42]">₹3,148</td>
+                      <td className="py-3 text-right">
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                          Successful
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

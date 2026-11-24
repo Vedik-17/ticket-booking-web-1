@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import {
   Calendar,
@@ -8,54 +8,44 @@ import {
   Sparkles,
   ArrowRight,
   Search,
-  Tag,
-  ShieldCheck,
-  Zap,
   Music,
-  Laptop,
-  Smile,
-  Trophy,
-  Heart,
+  Tent,
+  Compass,
+  Briefcase,
+  Landmark,
+  Bookmark,
+  ChevronLeft,
   ChevronRight,
-  PlusCircle,
+  Check,
 } from 'lucide-react';
-import { GlassCard, GlassBadge, GlassButton } from '@firefly/ui';
 import { Event, TicketTier } from '@firefly/shared-types';
 import { formatINR } from '@firefly/core';
 import { p1Storage } from '@/lib/idb-storage';
 
-export default function ReservaAttendeeHomePage() {
+export default function ReservaEditorialHomePage() {
   const [events, setEvents] = useState<Event[]>(() => p1Storage.getEvents());
   const [tiers, setTiers] = useState<TicketTier[]>(() => p1Storage.getTiers());
-  const [isLoading, setIsLoading] = useState(() => p1Storage.getEvents().length === 0);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [savedEventIds, setSavedEventIds] = useState<string[]>([]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Check saved events from localStorage
     if (typeof window !== 'undefined') {
       try {
         const saved = localStorage.getItem('reserva_saved_events');
         if (saved) setSavedEventIds(JSON.parse(saved));
-        const seen = localStorage.getItem('reserva_onboarding_dismissed');
-        if (!seen) setShowOnboarding(true);
       } catch {}
     }
 
     const updateData = () => {
-      const liveEvents = p1Storage.getEvents();
-      setEvents(liveEvents);
+      setEvents(p1Storage.getEvents());
       setTiers(p1Storage.getTiers());
-      setIsLoading(false);
     };
 
     updateData();
     const unsubscribe = p1Storage.subscribe(updateData);
-    p1Storage.syncWithServer().finally(() => {
-      updateData();
-    });
+    p1Storage.syncWithServer().finally(() => updateData());
 
     return () => unsubscribe();
   }, []);
@@ -83,22 +73,21 @@ export default function ReservaAttendeeHomePage() {
     return Math.min(...eventTiers.map((t) => t.priceInPence));
   };
 
-  const dismissOnboarding = () => {
-    setShowOnboarding(false);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('reserva_onboarding_dismissed', 'true');
+  const scrollSlider = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = direction === 'left' ? -380 : 380;
+      scrollContainerRef.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
     }
   };
 
   const categories = [
     { id: 'ALL', label: 'All', icon: Sparkles },
-    { id: 'MUSIC_FESTIVAL', label: 'Music', icon: Music },
-    { id: 'CONFERENCE', label: 'Tech', icon: Laptop },
-    { id: 'THEATRE_COMEDY', label: 'Comedy', icon: Smile },
-    { id: 'SPORTS', label: 'Sports', icon: Trophy },
+    { id: 'CONCERT', label: 'Concerts', icon: Music },
+    { id: 'MUSIC_FESTIVAL', label: 'Festivals', icon: Tent },
+    { id: 'CONFERENCE', label: 'Travel & Trips', icon: Compass },
+    { id: 'EXHIBITION', label: 'Workshops', icon: Briefcase },
+    { id: 'THEATRE_COMEDY', label: 'Culture', icon: Landmark },
   ];
-
-  const featuredEvent = events.find((e) => e.featured) || events[0];
 
   const filteredEvents = events.filter((evt) => {
     if (selectedCategory !== 'ALL' && evt.category !== selectedCategory) {
@@ -115,325 +104,366 @@ export default function ReservaAttendeeHomePage() {
   });
 
   return (
-    <div className="space-y-8 pb-8">
-      {/* Optional Onboarding Hero Card (Screen 2 reference) */}
-      {showOnboarding && (
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#4E0F26] via-[#6B1736] to-[#801438] p-6 text-white shadow-xl">
-          <div className="relative z-10 max-w-lg space-y-3">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5" />
-              Welcome to Reserva
-            </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Discover & Book Amazing Events
-            </h1>
-            <p className="text-xs sm:text-sm text-white/80">
-              Concerts, workshops, sports, cultural fests and exclusive live experiences.
-            </p>
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={dismissOnboarding}
-                className="px-5 py-2.5 rounded-xl bg-white text-[#6B1736] text-xs font-bold shadow-md hover:bg-white/90 transition-all"
-              >
-                Get Started
-              </button>
-              <button
-                onClick={dismissOnboarding}
-                className="text-xs text-white/70 hover:text-white font-medium transition-colors"
-              >
-                Skip
-              </button>
-            </div>
-          </div>
-          <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-20 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-white to-transparent" />
-        </div>
-      )}
-
-      {/* Search Input Bar (Screen 4 reference) */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E93]" />
-        <input
-          type="text"
-          placeholder="Search events, venues, artists..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-white border border-[#F0E6E8] text-xs text-[#1A1A1A] placeholder-[#8E8E93] shadow-sm focus:outline-none focus:border-[#6B1736] focus:ring-1 focus:ring-[#6B1736]/30 transition-all"
-        />
-      </div>
-
-      {/* Featured Event Hero Banner (Screen 4 reference) */}
-      {featuredEvent && !searchQuery && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-[#666666]">
-              Featured Experience
-            </h2>
-            <Link
-              href={`/event/${featuredEvent.slug || featuredEvent.id}`}
-              className="text-xs font-semibold text-[#6B1736] hover:underline flex items-center gap-0.5"
-            >
-              <span>Explore</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          <Link
-            href={`/event/${featuredEvent.slug || featuredEvent.id}`}
-            className="group block relative overflow-hidden rounded-3xl h-56 sm:h-72 shadow-lg border border-[#F0E6E8]"
-          >
-            <img
-              src={featuredEvent.posterUrl}
-              alt={featuredEvent.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-            />
-            {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-
-            {/* Top Badges */}
-            <div className="absolute top-4 left-4 flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-[#6B1736] text-white text-[11px] font-bold shadow-md">
-                Featured
-              </span>
-              <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-[11px] font-medium">
-                {featuredEvent.category.replace('_', ' ')}
-              </span>
+    <div className="space-y-16 pb-12">
+      {/* 1. EDITORIAL MAGAZINE HERO SECTION (Reference Image Left Hero) */}
+      <section className="relative pt-2 pb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+          {/* Left Column: Headlines & Search */}
+          <div className="lg:col-span-7 space-y-6 z-10">
+            <div className="space-y-3">
+              <h1 className="font-serif text-4xl sm:text-6xl lg:text-[68px] font-bold text-[#171D2B] leading-[1.08] tracking-tight">
+                Discover <br />
+                Events &amp; Travel <br />
+                <span className="italic font-normal text-[#742F42]">Experiences</span>
+              </h1>
+              <p className="text-sm sm:text-base text-[#171D2B]/75 max-w-lg font-medium leading-relaxed">
+                Book tickets for concerts, festivals, workshops and curated trips across India with instant pass delivery.
+              </p>
             </div>
 
-            {/* Bookmark button */}
-            <button
-              onClick={(e) => toggleSaveEvent(e, featuredEvent.id)}
-              className="absolute top-4 right-4 p-2.5 rounded-full bg-black/40 hover:bg-black/60 text-white backdrop-blur-md transition-all"
-              title="Save Event"
-            >
-              <Heart
-                className={`w-4 h-4 ${
-                  savedEventIds.includes(featuredEvent.id)
-                    ? 'fill-rose-500 text-rose-500'
-                    : 'text-white'
-                }`}
-              />
-            </button>
-
-            {/* Content at Bottom */}
-            <div className="absolute bottom-4 left-4 right-4 text-white space-y-1.5">
-              <h3 className="text-lg sm:text-2xl font-bold tracking-tight">
-                {featuredEvent.title}
-              </h3>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-white/80">
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-rose-300" />
-                  {new Date(featuredEvent.schedule.startsAt).toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-white/70" />
-                  {featuredEvent.venue.name}, {featuredEvent.venue.city}
-                </span>
+            {/* Pill Search Input Container */}
+            <div className="max-w-xl">
+              <div className="relative flex items-center bg-white rounded-full border border-[#E8DFD3] shadow-[0_8px_30px_rgba(23,29,43,0.06)] p-1.5 transition-all focus-within:border-[#742F42] focus-within:shadow-[0_8px_30px_rgba(116,47,66,0.12)]">
+                <Search className="w-4 h-4 text-[#8293A0] ml-3.5 mr-2 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search events, destinations or experiences..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent text-xs sm:text-sm text-[#171D2B] placeholder-[#8293A0] focus:outline-none pr-3"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById('curated-section');
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="px-5 py-2.5 rounded-full bg-[#742F42] hover:bg-[#5C2434] text-white text-xs font-bold transition-transform active:scale-95 shrink-0 shadow-sm"
+                  title="Search"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
               </div>
             </div>
-          </Link>
-        </section>
-      )}
 
-      {/* Category Filter Pills (Screen 4 reference) */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[#666666]">
-            Categories
-          </h2>
-          <Link
-            href="/explore"
-            className="text-xs font-semibold text-[#6B1736] hover:underline"
-          >
-            See All
-          </Link>
+            {/* Category Pills (Concerts, Festivals, Travel, Workshops, Culture) */}
+            <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none pt-1">
+              {categories.map((cat) => {
+                const Icon = cat.icon;
+                const isSelected = selectedCategory === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all shadow-sm ${
+                      isSelected
+                        ? 'bg-[#742F42] text-white shadow-md shadow-[#742F42]/20'
+                        : 'bg-white text-[#171D2B] border border-[#E8DFD3] hover:border-[#742F42]/40 hover:bg-[#F4EBDD]'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-white' : 'text-[#B64A38]'}`} />
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Column: Hand-Crafted Scrapbook Collage Composition */}
+          <div className="lg:col-span-5 relative flex justify-center items-center py-6 select-none">
+            {/* Washi Tape Yellow Accent in Top Corner */}
+            <div className="absolute -top-3 left-4 w-12 h-6 bg-[#D5B77B]/85 rotate-12 z-20 shadow-sm backdrop-blur-sm pointer-events-none" />
+
+            {/* Collage Canvas Container */}
+            <div className="relative w-full max-w-sm sm:max-w-md aspect-[4/3] sm:aspect-square flex items-center justify-center">
+              {/* Background Terracotta & Dusty Blue Paper Cutouts */}
+              <div className="absolute -top-4 right-2 w-48 h-56 bg-[#B64A38]/90 rounded-2xl -rotate-6 shadow-md" />
+              <div className="absolute bottom-2 left-2 w-52 h-44 bg-[#8293A0]/80 rounded-2xl rotate-3 shadow-md" />
+
+              {/* Center Heritage Monument Cutout (Charminar / Architecture) */}
+              <div className="relative w-[85%] h-[82%] rounded-2xl overflow-hidden shadow-2xl border-4 border-white z-10 bg-white">
+                <img
+                  src="https://images.unsplash.com/photo-1605649487212-47bdab064df8?auto=format&fit=crop&w=800&q=80"
+                  alt="Heritage Monument"
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+              </div>
+
+              {/* Rubber Postmark Stamp: Circular "RESERVA • TRAVEL & EVENTS" */}
+              <div className="absolute -top-2 right-0 w-24 h-24 rounded-full border-2 border-dashed border-[#742F42] text-[#742F42] flex flex-col items-center justify-center p-1 bg-white/90 backdrop-blur-sm shadow-md rotate-12 z-20 pointer-events-none">
+                <span className="text-[7px] font-black uppercase tracking-widest text-[#742F42]">
+                  ★ RESERVA ★
+                </span>
+                <span className="text-[10px] font-serif font-black uppercase text-[#B64A38] mt-0.5">
+                  TRAVEL &amp; EVENTS
+                </span>
+                <span className="text-[8px] font-mono text-[#8293A0]">EST. 2026</span>
+              </div>
+
+              {/* Layered Polaroid Photo: Concert Crowd */}
+              <div className="absolute -bottom-6 -right-2 sm:-right-6 w-52 sm:w-60 bg-white p-2.5 pb-5 rounded-xl shadow-2xl rotate-6 z-20 border border-[#E8DFD3] transition-transform hover:rotate-3 duration-300">
+                <div className="relative w-full h-28 sm:h-32 rounded-lg overflow-hidden bg-neutral-900">
+                  <img
+                    src="https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80"
+                    alt="Live Concert Crowd"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                </div>
+                <div className="pt-2 text-center">
+                  <span className="font-serif italic text-xs font-semibold text-[#171D2B]">
+                    Arijit Singh Live • Nov 30
+                  </span>
+                </div>
+              </div>
+
+              {/* Wavy Postal Airmail Cancellation Lines */}
+              <div className="absolute -bottom-2 left-6 w-32 h-8 z-15 opacity-60 pointer-events-none">
+                <svg viewBox="0 0 120 30" className="w-full h-full stroke-[#742F42]" fill="none" strokeWidth="1.5">
+                  <path d="M 0,5 Q 15,0 30,5 T 60,5 T 90,5 T 120,5" />
+                  <path d="M 0,15 Q 15,10 30,15 T 60,15 T 90,15 T 120,15" />
+                  <path d="M 0,25 Q 15,20 30,25 T 60,25 T 90,25 T 120,25" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. CURATED PICKS THIS WEEK (Reference Image Middle Slider Section) */}
+      <section id="curated-section" className="space-y-6 pt-4">
+        {/* Section Header with Golden Brush Stroke Underline */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="space-y-1">
+            <h2 className="font-serif text-3xl sm:text-4xl font-bold text-[#171D2B]">
+              Curated Picks <br className="sm:hidden" />
+              <span className="relative inline-block text-[#171D2B]">
+                This Week
+                {/* Hand-Drawn Gold Underline */}
+                <svg
+                  className="absolute -bottom-2.5 left-0 w-full h-3 text-[#D5B77B] overflow-visible"
+                  viewBox="0 0 140 12"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M 3 8 Q 70 1 137 7"
+                    stroke="currentColor"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/explore"
+              className="text-xs font-bold text-[#742F42] hover:text-[#5C2434] transition-colors flex items-center gap-1 mr-2"
+            >
+              <span>View All</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+
+            {/* Slider Navigation Arrows */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => scrollSlider('left')}
+                className="w-9 h-9 rounded-full bg-white border border-[#E8DFD3] text-[#171D2B] hover:bg-[#F4EBDD] flex items-center justify-center shadow-sm transition-all"
+                title="Previous"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scrollSlider('right')}
+                className="w-9 h-9 rounded-full bg-white border border-[#E8DFD3] text-[#171D2B] hover:bg-[#F4EBDD] flex items-center justify-center shadow-sm transition-all"
+                title="Next"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
-          {categories.map((cat) => {
-            const Icon = cat.icon;
-            const isSelected = selectedCategory === cat.id;
+        {/* Horizontal Sliding Cards Track */}
+        <div
+          ref={scrollContainerRef}
+          className="flex items-stretch gap-6 overflow-x-auto pb-4 pt-1 scrollbar-none snap-x snap-mandatory"
+        >
+          {filteredEvents.map((evt) => {
+            const startDate = new Date(evt.schedule.startsAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            });
+            const startingPrice = getStartingPrice(evt.id);
+            const isSaved = savedEventIds.includes(evt.id);
+
+            // Determine badge style
+            let badgeBg = 'bg-[#742F42] text-white';
+            let catLabel = 'Concert';
+            if (evt.category === 'CONFERENCE') {
+              badgeBg = 'bg-[#D5B77B] text-[#171D2B]';
+              catLabel = 'Travel';
+            } else if (evt.category === 'EXHIBITION') {
+              badgeBg = 'bg-[#8293A0] text-white';
+              catLabel = 'Festival';
+            } else if (evt.category === 'MUSIC_FESTIVAL') {
+              badgeBg = 'bg-[#B64A38] text-white';
+              catLabel = 'Music';
+            }
+
             return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all shrink-0 ${
-                  isSelected
-                    ? 'bg-[#6B1736] text-white shadow-md shadow-[#6B1736]/20'
-                    : 'bg-white text-[#333333] border border-[#F0E6E8] hover:border-[#6B1736]/30 hover:bg-[#FFF5F7]'
-                }`}
+              <Link
+                key={evt.id}
+                href={`/event/${evt.slug || evt.id}`}
+                className="group relative flex flex-col justify-between w-[290px] sm:w-[340px] shrink-0 bg-white rounded-3xl p-3.5 border border-[#E8DFD3] shadow-[0_4px_24px_rgba(23,29,43,0.04)] hover:shadow-[0_12px_36px_rgba(116,47,66,0.12)] hover:border-[#742F42]/30 transition-all duration-300 snap-start"
               >
-                <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-[#6B1736]'}`} />
-                <span>{cat.label}</span>
-              </button>
+                {/* Image Container with Rounded Frame & Hover Zoom */}
+                <div className="relative h-48 w-full rounded-2xl overflow-hidden bg-neutral-100">
+                  <img
+                    src={evt.posterUrl}
+                    alt={evt.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                  />
+
+                  {/* Category Pill Tag */}
+                  <div className="absolute bottom-3 left-3">
+                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold shadow-md ${badgeBg}`}>
+                      {catLabel}
+                    </span>
+                  </div>
+
+                  {/* Bookmark Button in Top Right */}
+                  <button
+                    onClick={(e) => toggleSaveEvent(e, evt.id)}
+                    className="absolute top-3 right-3 p-2 rounded-full bg-white/90 hover:bg-white text-[#171D2B] shadow-md backdrop-blur-sm transition-all"
+                    title={isSaved ? 'Remove from Saved' : 'Save'}
+                  >
+                    <Bookmark
+                      className={`w-3.5 h-3.5 ${
+                        isSaved ? 'fill-[#B64A38] text-[#B64A38]' : 'text-[#171D2B]'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Card Information */}
+                <div className="p-2 pt-3 flex-1 flex flex-col justify-between space-y-3">
+                  <div className="space-y-1">
+                    <h3 className="font-serif font-bold text-base sm:text-lg text-[#171D2B] group-hover:text-[#742F42] transition-colors line-clamp-1">
+                      {evt.title}
+                    </h3>
+                    <div className="flex items-center gap-3 text-xs text-[#171D2B]/70 font-medium pt-0.5">
+                      <span className="flex items-center gap-1 text-[#B64A38]">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {startDate}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <MapPin className="w-3.5 h-3.5 text-[#8293A0]" />
+                        {evt.venue.city}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Price & Arrow Button */}
+                  <div className="pt-2 border-t border-[#E8DFD3]/60 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-[#8293A0] block">
+                        Tickets from
+                      </span>
+                      <span className="text-sm font-extrabold text-[#171D2B]">
+                        {startingPrice ? formatINR(startingPrice) : 'Open Entry'}
+                      </span>
+                    </div>
+
+                    <div className="w-8 h-8 rounded-full bg-[#F4EBDD] group-hover:bg-[#742F42] group-hover:text-white text-[#171D2B] flex items-center justify-center transition-colors">
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+              </Link>
             );
           })}
         </div>
       </section>
 
-      {/* Trending Events Grid (Screen 4 reference) */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-bold text-[#1A1A1A]">
-              {selectedCategory === 'ALL' ? 'Trending Events' : 'Filtered Events'}
-            </h2>
-            <p className="text-xs text-[#666666]">
-              Handpicked live experiences happening soon
-            </p>
+      {/* 3. PROMOTIONAL GETAWAY BANNER (Reference Image Bottom Banner) */}
+      <section className="relative overflow-hidden rounded-3xl bg-white border border-[#E8DFD3] shadow-[0_8px_32px_rgba(23,29,43,0.05)]">
+        <div className="grid grid-cols-1 md:grid-cols-12 items-center">
+          {/* Coastal Photography Left Slice */}
+          <div className="md:col-span-4 h-56 md:h-64 w-full overflow-hidden bg-neutral-100">
+            <img
+              src="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80"
+              alt="Plan Your Next Getaway"
+              className="w-full h-full object-cover"
+            />
           </div>
-          <Link
-            href="/explore"
-            className="text-xs font-semibold text-[#6B1736] hover:underline flex items-center gap-0.5"
-          >
-            <span>See All</span>
-            <ChevronRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
 
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-            {[1, 2, 3].map((n) => (
-              <div
-                key={n}
-                className="h-64 rounded-3xl bg-white animate-pulse border border-[#F0E6E8]"
-              />
-            ))}
-          </div>
-        ) : filteredEvents.length === 0 ? (
-          <div className="text-center py-12 px-4 rounded-3xl bg-white border border-[#F0E6E8] space-y-3 shadow-sm">
-            <div className="w-12 h-12 rounded-full bg-[#FDF2F4] text-[#6B1736] mx-auto flex items-center justify-center">
-              <Calendar className="w-6 h-6" />
+          {/* Center Callout & Action */}
+          <div className="md:col-span-5 p-6 sm:p-8 space-y-3">
+            <h3 className="font-serif text-2xl sm:text-3xl font-bold text-[#171D2B] leading-tight">
+              Plan Your Next <br />
+              <span className="text-[#B64A38] italic font-normal">Getaway</span>
+            </h3>
+            <p className="text-xs sm:text-sm text-[#171D2B]/70 font-medium">
+              Explore curated travel experiences, weekend trails, group trips and upcoming travel events.
+            </p>
+            <div className="pt-1">
+              <Link
+                href="/explore"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#742F42] hover:bg-[#5C2434] text-white text-xs font-bold shadow-md transition-all active:scale-95"
+              >
+                <span>Explore Travel</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-            <h3 className="text-sm font-bold text-[#1A1A1A]">No Events Found</h3>
-            <p className="text-xs text-[#666666]">
-              Try choosing a different category or clearing your search filter.
-            </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('ALL');
-              }}
-              className="text-xs text-[#6B1736] font-bold hover:underline"
-            >
-              Reset Filters
-            </button>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
-            {filteredEvents.map((evt) => {
-              const startDate = new Date(evt.schedule.startsAt).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-              });
-              const startingPrice = getStartingPrice(evt.id);
-              const isSaved = savedEventIds.includes(evt.id);
 
-              return (
-                <Link
-                  key={evt.id}
-                  href={`/event/${evt.slug || evt.id}`}
-                  className="group block bg-white rounded-3xl overflow-hidden border border-[#F0E6E8] shadow-[0_4px_20px_rgba(107,23,54,0.04)] hover:shadow-[0_8px_30px_rgba(107,23,54,0.10)] hover:border-[#6B1736]/30 transition-all duration-300 flex flex-col"
-                >
-                  {/* Poster Image Container */}
-                  <div className="relative h-44 w-full overflow-hidden bg-neutral-100">
-                    <img
-                      src={evt.posterUrl}
-                      alt={evt.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-                    {/* Category Tag in Light Rose Pill */}
-                    <div className="absolute top-3 left-3">
-                      <span className="px-2.5 py-1 rounded-full bg-[#FDF2F4]/90 backdrop-blur-sm text-[#6B1736] text-[10px] font-bold border border-[#FCE7EC] shadow-sm">
-                        {evt.category.replace('_', ' ')}
-                      </span>
-                    </div>
-
-                    {/* Bookmark Heart Button */}
-                    <button
-                      onClick={(e) => toggleSaveEvent(e, evt.id)}
-                      className="absolute top-3 right-3 p-2 rounded-full bg-white/80 hover:bg-white text-[#1A1A1A] shadow-md backdrop-blur-sm transition-all"
-                      title={isSaved ? 'Remove from Saved' : 'Save Event'}
-                    >
-                      <Heart
-                        className={`w-3.5 h-3.5 ${
-                          isSaved ? 'fill-rose-500 text-rose-500' : 'text-[#666666]'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Card Content */}
-                  <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-[11px] text-[#666666] font-medium">
-                        <span className="flex items-center gap-1 text-[#6B1736]">
-                          <Calendar className="w-3 h-3" />
-                          {startDate}
-                        </span>
-                        <span>•</span>
-                        <span className="truncate">{evt.venue.city}</span>
-                      </div>
-
-                      <h3 className="text-sm font-bold text-[#1A1A1A] group-hover:text-[#6B1736] transition-colors line-clamp-1">
-                        {evt.title}
-                      </h3>
-                      <p className="text-xs text-[#666666] line-clamp-2">
-                        {evt.tagline || evt.description}
-                      </p>
-                    </div>
-
-                    {/* Card Footer: Price & CTA */}
-                    <div className="pt-2.5 border-t border-[#F0E6E8] flex items-center justify-between">
-                      <div>
-                        <span className="text-[10px] text-[#8E8E93] uppercase block font-medium">
-                          From
-                        </span>
-                        <span className="text-sm font-extrabold text-[#1A1A1A]">
-                          {startingPrice ? formatINR(startingPrice) : 'Open Entry'}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-xs font-bold text-[#6B1736] group-hover:translate-x-0.5 transition-transform">
-                        <span>Book</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+          {/* Right Vintage Lighthouse Illustration & Wavy Postmark */}
+          <div className="md:col-span-3 hidden md:flex items-center justify-center p-6 relative">
+            <div className="relative w-28 h-28 flex items-center justify-center">
+              {/* Golden Sun Disc */}
+              <div className="absolute w-20 h-20 rounded-full bg-[#D5B77B]/40 blur-xs" />
+              {/* Lighthouse / Monument Icon */}
+              <div className="relative z-10 w-16 h-24 flex items-center justify-center">
+                <Landmark className="w-16 h-16 text-[#742F42]" />
+              </div>
+              {/* Postmark Waves */}
+              <div className="absolute -left-12 top-8 w-24 h-8 opacity-40 pointer-events-none">
+                <svg viewBox="0 0 100 20" className="w-full h-full stroke-[#742F42]" fill="none" strokeWidth="1.5">
+                  <path d="M 0,5 Q 12,0 25,5 T 50,5 T 75,5 T 100,5" />
+                  <path d="M 0,15 Q 12,10 25,15 T 50,15 T 75,15 T 100,15" />
+                </svg>
+              </div>
+            </div>
           </div>
-        )}
+        </div>
       </section>
 
-      {/* Organize an Event CTA Banner (Screen 16 reference) */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#FFF5F7] to-[#FDF2F4] border border-[#FCE7EC] p-6 sm:p-8 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1 max-w-lg">
-            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6B1736] uppercase tracking-wider">
-              <PlusCircle className="w-4 h-4" />
-              Reserva For Organizers
-            </span>
-            <h3 className="text-lg sm:text-xl font-bold text-[#1A1A1A]">
-              Organize an Event
-            </h3>
-            <p className="text-xs sm:text-sm text-[#666666]">
-              Create, manage and sell tickets for your concerts, college fests, or workshops on Reserva.
-            </p>
-          </div>
-
-          <Link href="/organiser">
-            <GlassButton variant="primary" size="md" className="whitespace-nowrap">
-              Go to Organizer Portal
-            </GlassButton>
-          </Link>
+      {/* 4. ORGANIZER ENTRY CTA SECTION */}
+      <section className="rounded-3xl bg-[#F4EBDD] border border-[#E8DFD3] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1 max-w-lg">
+          <span className="text-[10px] uppercase font-bold text-[#742F42] tracking-wider block">
+            Reserva for Organizers
+          </span>
+          <h3 className="font-serif text-xl sm:text-2xl font-bold text-[#171D2B]">
+            Hosting a concert, festival, or workshop?
+          </h3>
+          <p className="text-xs sm:text-sm text-[#171D2B]/70">
+            Publish tickets in minutes with zero platform gateway lock-in, direct UPI settlements and offline QR check-in.
+          </p>
         </div>
+
+        <Link
+          href="/organiser"
+          className="px-6 py-3 rounded-full bg-[#171D2B] hover:bg-[#742F42] text-white text-xs font-bold transition-all shadow-md text-center shrink-0"
+        >
+          Go to Organizer Portal
+        </Link>
       </section>
     </div>
   );
